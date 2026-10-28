@@ -1,0 +1,102 @@
+{
+  "_comment": "Read-only overview reports for u_toronto_event. Created by create_reports.py via POST sys_report. Filters use relative date functions so the content stays current without anyone editing the report.",
+  "table": "u_toronto_event",
+  "reports": [
+    {
+      "title": "Toronto Events — This Week",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_start>=javascript:gs.beginningOfThisWeek()^u_start<=javascript:gs.endOfThisWeek()",
+      "description": "Count of events starting in the current calendar week. Relative filter — updates itself every Monday."
+    },
+    {
+      "title": "Toronto Events — Upcoming",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_start>javascript:gs.now()",
+      "description": "Everything whose start is still in the future."
+    },
+    {
+      "title": "Toronto Events — Next 7 Days",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_start>=javascript:gs.now()^u_start<=javascript:gs.daysAgoStart(-7)",
+      "description": "Rolling seven-day forward window. Better than 'this week' for planning because it does not reset to zero each Monday."
+    },
+    {
+      "title": "Toronto Events — Free vs Paid",
+      "type": "donut",
+      "aggregate": "COUNT",
+      "field": "u_is_free",
+      "filter": "u_startISNOTEMPTY",
+      "description": "Split of free and ticketed events among those with a start date."
+    },
+    {
+      "title": "Toronto Events — By Source",
+      "type": "bar",
+      "aggregate": "COUNT",
+      "field": "u_source",
+      "filter": "u_sourceISNOTEMPTY",
+      "description": "Which feed or scraper contributed how many events. Useful for spotting a source that silently stopped."
+    },
+    {
+      "title": "Toronto Events — By Status",
+      "type": "donut",
+      "aggregate": "COUNT",
+      "field": "u_status",
+      "filter": "",
+      "description": "Distribution of status values (UPCOMING today). Will show cancellations the moment the feed carries them."
+    },
+    {
+      "title": "Toronto Events — By Duration Category",
+      "type": "pie",
+      "aggregate": "COUNT",
+      "field": "u_duration_category",
+      "filter": "u_duration_categoryISNOTEMPTY",
+      "description": "Single-day versus multi-day split."
+    },
+    {
+      "title": "Toronto Events — Multi-Day",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_is_multi_day=true",
+      "description": "Events spanning more than one day."
+    },
+    {
+      "title": "Toronto Events — Upcoming By Source",
+      "type": "horizontal_bar",
+      "aggregate": "COUNT",
+      "field": "u_source",
+      "filter": "u_start>javascript:gs.now()^u_sourceISNOTEMPTY",
+      "description": "Forward-looking version of By Source — who is supplying the events that are actually still ahead of us."
+    },
+    {
+      "title": "Toronto Events — Added This Week",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "sys_created_on>=javascript:gs.beginningOfThisWeek()",
+      "description": "How many records the nightly sync inserted this week. Distinguishes 'the feed grew' from 'the feed did not change'."
+    },
+    {
+      "title": "Toronto Events — Data Quality: No Coordinates",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_latISEMPTY",
+      "description": "2,341 of 11,940 at first load were missing lat/lng. Track it as a quality metric rather than discovering it when a map report looks empty."
+    },
+    {
+      "title": "Toronto Events — Data Quality: No Start Date",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_startISEMPTY",
+      "description": "Events that cannot appear in any date-based view. Should stay near zero."
+    }
+  ]
+}

@@ -33,6 +33,7 @@ number and error message in this README was observed, not guessed.
 | [`docs/HOW_IT_TALKS_TO_SERVICENOW.md`](docs/HOW_IT_TALKS_TO_SERVICENOW.md) | understand the auth, or copy a curl / PowerShell example |
 | [`docs/REBUILD.md`](docs/REBUILD.md) | rebuild everything after an instance expires |
 | [`FRESH_INSTANCE_STEPS.md`](FRESH_INSTANCE_STEPS.md) | stand this up against a brand-new instance |
+| [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) | build read-only views: reports vs dashboards vs UI Builder |
 | [`docs/FINDINGS.md`](docs/FINDINGS.md) | see what was tested, what broke, and how it was debugged |
 
 ---
@@ -733,6 +734,7 @@ Example: `name=u_my_table^NelementISNOTEMPTY^ORDERBYelement`
 ├── verify_table.py           # round-trip proof: write, read back, compare
 ├── create_acl.py             # attempts ACLs; explains the platform limit
 ├── fresh_instance.sh         # one-shot bootstrap: prompts or pre-fill, then builds
+├── create_reports.py         # spec → sys_report records (idempotent)
 ├── FRESH_INSTANCE_STEPS.md   # copy-paste guide (script path and manual path)
 ├── import_events.py          # the sync: upsert + batch stamp + sweep + dedupe
 ├── deploy/
@@ -741,7 +743,8 @@ Example: `name=u_my_table^NelementISNOTEMPTY^ORDERBYelement`
 │   └── run-sync.sh              # cron wrapper
 ├── specs/
 │   ├── u_toronto_event.json  # target table, 22 fields
-│   └── u_ev_stage.json       # staging table (pull variant)
+│   ├── u_ev_stage.json       # staging table (pull variant)
+│   └── reports_toronto_events.json  # 12 read-only reports
 ├── tests/
 │   ├── test_sync.py          # 27 behavioural assertions
 │   └── test_loads.py         # repeated-load / duplicate-detection harness
