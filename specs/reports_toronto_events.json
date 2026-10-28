@@ -161,6 +161,54 @@
       "field": "",
       "filter": "u_start>javascript:gs.endOfCurrentMinute()^EQ",
       "description": "Everything still ahead, no upper bound."
+    },
+    {
+      "title": "Toronto Events — All",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "",
+      "description": "Every row in the table. The integration's headline volume."
+    },
+    {
+      "title": "Toronto Events — Mapped Venues",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_location_refISNOTEMPTY^EQ",
+      "description": "Rows whose venue resolved to cmn_location, i.e. plottable on the map."
+    },
+    {
+      "title": "Toronto Events — Unmapped",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_location_refISEMPTY^EQ",
+      "description": "Rows the map cannot place. Feeds without coordinates."
+    },
+    {
+      "title": "Toronto Events — No Category",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_primary_categoryISEMPTY^EQ",
+      "description": "Derived category missing -- should be 0; signals the post-sync backfill did not run."
+    },
+    {
+      "title": "Toronto Events — Added Last 7 Days",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "sys_created_on>=javascript:gs.daysAgoStart(7)^EQ",
+      "description": "Records written in the last week. Distinguishes a live feed from a stalled one."
+    },
+    {
+      "title": "Toronto Events — By Sync Batch",
+      "type": "bar",
+      "aggregate": "COUNT",
+      "field": "u_batch_id",
+      "filter": "u_batch_idISNOTEMPTY^EQ",
+      "description": "One bar per sync run. A flat line means nothing new; a missing bar means no run."
     }
   ]
 }

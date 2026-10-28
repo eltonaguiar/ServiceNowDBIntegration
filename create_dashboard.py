@@ -199,6 +199,18 @@ def delete_dashboard(sn: ServiceNow, name: str) -> int:
     return removed
 
 
+def normalise_tabs(spec: dict) -> list[tuple[str, int, list[dict]]]:
+    """Spec -> [(tab name, order, widgets)].
+
+    Supports either a single implicit tab (`widgets`) or several (`tabs`), so a
+    dashboard can carry a working view plus a diagnostics/health tab without
+    those widgets cluttering the main view.
+    """
+    if spec.get("tabs"):
+        return [(t["name"], i, t.get("widgets") or []) for i, t in enumerate(spec["tabs"])]
+    return [("Overview", 0, spec.get("widgets") or [])]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build a PAR dashboard from a JSON spec.")
     parser.add_argument("spec", type=Path)
@@ -210,18 +222,20 @@ def main(argv: list[str] | None = None) -> int:
                         default=Path("specs/reports_toronto_events.json"),
                         help="where each widget's filter/group-by/visualization comes from")
     parser.add_argument("--template", type=Path, default=None,
-                        help="native component_props skeleton (default specs/pa_widget_template.json)")
+                        help="native component_props skeleton (default per-visualization templates)")
     args = parser.parse_args(argv)
 
     spec = json.loads(args.spec.read_text(encoding="utf-8"))
     name = spec["name"]
     table = spec["table"]
-    widgets = spec["widgets"]
+    tabs = normalise_tabs(spec)
+    all_widgets = [w for _, _, ws in tabs for w in ws]
 
     print(f"spec      : {args.spec}")
     print(f"dashboard : {name}")
     print(f"source    : {table}")
-    print(f"widgets   : {len(widgets)}")
+    print(f"tabs      : {len(tabs)} ({', '.join(t[0] for t in tabs)})")
+    print(f"widgets   : {len(all_widgets)}")
     print()
 
     sn = ServiceNow()
@@ -230,10 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         delete_dashboard(sn, name)
         return 0
 
-    titles = [w["report"] for w in widgets if w.get("kind", "chart") == "chart"]
-    # Widget data comes from the report DEFINITIONS (type/field/filter), not from
-    # the sys_report records. The definitions are the single source of truth, so
-    # the dashboard and the reports cannot drift apart.
+    titles = [w["report"] for w in all_widgets if w.get("kind", "chart") == "chart"]
     if not args.reports_spec.exists():
         print(f"reports spec not found: {args.reports_spec}")
         return 1
@@ -246,17 +257,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  x {t}")
         return 1
     template = pa_widgets.load_template(args.template) if args.template else None
-    print(f"resolved {len(titles)} widget definition(s) from {args.reports_spec}")
+    print(f"resolved {len(titles)} chart definition(s) from {args.reports_spec}")
 
     if args.dry_run:
         print("\nDRY RUN -- nothing created")
-        for el in build_layout(widgets, report_defs, template, table):
-            props = json.loads(el["component_props"])
-            ds = props["dataSources"][0]
-            print(f"  x={el['x']:<3} y={el['y']:<3} w={el['w']:<3} h={el['h']:<3} "
-                  f"{el['name'][:34]:<36} viz={el['component_id'][:8]} "
-                  f"group={ds and (props['groupBy'][0]['groupBy'][0]['groupByField'] if props['groupBy'] else '-'):<20} "
-                  f"filter={ds['filterQuery'][:40]}")
+        for tab_name, order, ws in tabs:
+            print(f"  tab {order}: {tab_name} ({len(ws)} widget(s))")
+            for el in build_layout(ws, report_defs, template, table):
+                print(f"    x={el['x']:<3} y={el['y']:<3} w={el['w']:<3} h={el['h']:<3} "
+                      f"{el['name'][:34]:<36} comp={el['component_id'][:8]}")
         return 0
 
     existing_id = existing_dashboard(sn, name)
@@ -266,12 +275,17 @@ def main(argv: list[str] | None = None) -> int:
         print("  --delete  remove it entirely")
         return 1
 
-    print("\n[1/4] par_dashboard")
+    print("\n[1/5] par_dashboard")
     if existing_id:
-        # Updating: keep the dashboard record so its sys_id -- and therefore any
-        # bookmark or link to it -- stays valid.
         dash_id = existing_id
-        print(f"      reusing existing {dash_id} (URL preserved)")
+        # Keep the record (and its URL) but let the spec own the description, so
+        # --update actually converges the record onto the spec instead of
+        # leaving stale text behind.
+        sn.update("par_dashboard", dash_id, {
+            "description": spec.get("description", ""),
+            "grid": str(spec.get("grid", 48)),
+        })
+        print(f"      reusing existing {dash_id} (URL preserved, description synced)")
     else:
         dash = sn.insert("par_dashboard", {
             "name": name,
@@ -282,73 +296,72 @@ def main(argv: list[str] | None = None) -> int:
         dash_id = dash["sys_id"]
         print(f"      created {dash_id}")
 
-    print("[2/4] par_dashboard_tab")
-    tabs = sn.query("par_dashboard_tab", encoded_query=f"dashboard={dash_id}",
-                    fields=["sys_id"], limit=10)
-    if tabs:
-        tab_id = tabs[0]["sys_id"]
-        print(f"      reusing existing tab {tab_id}")
-    else:
-        tab = sn.insert("par_dashboard_tab", {"dashboard": dash_id, "name": "Overview", "order": "0"})
-        tab_id = tab["sys_id"]
-        print(f"      created {tab_id}")
-
-    # Clear any previous canvas + widget rows so the rebuild is not additive.
+    # Drop previous canvases + widget rows so the rebuild is not additive. Tabs
+    # are kept and matched by name, so their identity survives a rebuild.
     if existing_id:
+        n_canvas = n_widget = 0
         for old_canvas in sn.query("par_dashboard_canvas", encoded_query=f"dashboard={dash_id}",
                                    fields=["sys_id"], limit=50):
             for wid in sn.query("par_dashboard_widget", encoded_query=f"canvas={old_canvas['sys_id']}",
                                 fields=["sys_id"], limit=500):
-                sn.delete("par_dashboard_widget", wid["sys_id"])
-            sn.delete("par_dashboard_canvas", old_canvas["sys_id"])
-        print("      cleared previous canvas + widget rows")
+                sn.delete("par_dashboard_widget", wid["sys_id"]); n_widget += 1
+            sn.delete("par_dashboard_canvas", old_canvas["sys_id"]); n_canvas += 1
+        print(f"      cleared {n_canvas} canvas(es) and {n_widget} widget row(s)")
 
-    print("[3/4] par_dashboard_canvas")
-    layout = build_layout(widgets, report_defs, template, table)
-    # `_filter` is carried for the pre-flight row count in verification; it must
-    # not leak into the stored layout, which the UI also writes to.
-    canvas_layout = [{k: v for k, v in el.items() if not k.startswith("_")} for el in layout]
-    # dashboard_tab MUST be supplied here; a later PATCH silently does not persist.
-    canvas = sn.insert("par_dashboard_canvas", {
-        "dashboard": dash_id,
-        "dashboard_tab": tab_id,
-        "layout": json.dumps(canvas_layout),
-    })
-    print(f"      created {canvas['sys_id']} with {len(layout)} element(s)")
+    existing_tabs = {t.get("name"): t["sys_id"] for t in
+                     sn.query("par_dashboard_tab", encoded_query=f"dashboard={dash_id}",
+                              fields=["sys_id", "name"], limit=20)}
 
-    # The canvas layout is only a cached representation. The renderer reads
-    # par_dashboard_widget rows, and the two are joined by a shared sys_id:
-    # layout[i]["sys_id"] MUST equal the widget row's sys_id.
-    print("[4/4] par_dashboard_widget rows")
-    made = 0
-    for element in layout:
-        try:
-            sn.insert("par_dashboard_widget",
-                      pa_widgets.build_widget_row(element, canvas["sys_id"], dash_id))
-            made += 1
-        except SNError as exc:
-            print(f"      x widget failed ({element['name'][:30]}): {exc}")
-    print(f"      created {made}/{len(layout)} widget row(s)")
+    built: list[tuple[str, str, list[dict]]] = []   # (tab name, canvas id, layout)
+    for tab_name, order, ws in tabs:
+        print(f"\n=== tab {order}: {tab_name} ===")
+        tab_id = existing_tabs.get(tab_name)
+        if tab_id:
+            sn.update("par_dashboard_tab", tab_id, {"order": str(order)})
+            print(f"  [2/5] par_dashboard_tab  reusing {tab_id}")
+        else:
+            tab = sn.insert("par_dashboard_tab",
+                            {"dashboard": dash_id, "name": tab_name, "order": str(order)})
+            tab_id = tab["sys_id"]
+            print(f"  [2/5] par_dashboard_tab  created {tab_id}")
 
-    print("\n=== verification (re-reading from the instance) ===")
-    back = sn.query("par_dashboard_canvas", encoded_query=f"dashboard={dash_id}",
-                    fields=["sys_id", "dashboard_tab", "layout"], limit=10)
+        print(f"  [3/5] par_dashboard_canvas")
+        layout = build_layout(ws, report_defs, template, table)
+        canvas_layout = [{k: v for k, v in el.items() if not k.startswith("_")} for el in layout]
+        # dashboard_tab MUST be supplied here; a later PATCH silently does not persist.
+        canvas = sn.insert("par_dashboard_canvas", {
+            "dashboard": dash_id,
+            "dashboard_tab": tab_id,
+            "layout": json.dumps(canvas_layout),
+        })
+        print(f"        created {canvas['sys_id']} with {len(layout)} element(s)")
+
+        print(f"  [4/5] par_dashboard_widget rows")
+        made = 0
+        for element in layout:
+            try:
+                sn.insert("par_dashboard_widget",
+                          pa_widgets.build_widget_row(element, canvas["sys_id"], dash_id))
+                made += 1
+            except SNError as exc:
+                print(f"        x {element['name'][:30]}: {exc}")
+        print(f"        created {made}/{len(layout)} widget row(s)")
+        built.append((tab_name, canvas["sys_id"], layout))
+
+    print("\n[5/5] verification (re-reading from the instance)")
     ok = True
-    for c in back:
-        try:
-            arr = json.loads(c.get("layout") or "[]")
-        except Exception:
-            arr = []
-        linked = bool(c.get("dashboard_tab"))
-        rows = sn.query("par_dashboard_widget", encoded_query=f"canvas={c['sys_id']}",
+    for tab_name, canvas_id, layout in built:
+        back = sn.query("par_dashboard_canvas", encoded_query=f"sys_id={canvas_id}",
+                        fields=["sys_id", "dashboard_tab", "layout"], limit=1)
+        arr = json.loads(back[0].get("layout") or "[]") if back else []
+        linked = bool(back and back[0].get("dashboard_tab"))
+        rows = sn.query("par_dashboard_widget", encoded_query=f"canvas={canvas_id}",
                         fields=["sys_id", "name", "component", "component_props"], limit=200)
-        wid = len(rows)
-        print(f"  canvas {c['sys_id']}: tab={'yes' if linked else 'NO'} "
-              f"layout_elements={len(arr)} widget_rows={wid}")
-        ok = ok and linked and len(arr) == len(layout) and wid == len(layout)
+        print(f"\n  tab {tab_name!r}: canvas={canvas_id} tab_linked={'yes' if linked else 'NO'} "
+              f"layout={len(arr)} widget_rows={len(rows)}")
+        ok = ok and linked and len(arr) == len(layout) and len(rows) == len(layout)
 
         by_id = {r["sys_id"]: r for r in rows}
-        print("\n  pre-flight: does each widget's own query return any rows?")
         for el in arr:
             row = by_id.get(el.get("sys_id"))
             comp = (row or {}).get("component")
@@ -358,14 +371,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"    NO COMPONENT -- will not render: {el['name'][:40]}")
                 ok = False
                 continue
-
-            # Headings carry no data; filters are controls, not queries.
             if comp_val in (pa_widgets.HEADING, pa_widgets.FILTER, pa_widgets.RICH_TEXT):
                 kind = {pa_widgets.HEADING: "heading", pa_widgets.FILTER: "filter",
                         pa_widgets.RICH_TEXT: "richtext"}[comp_val]
-                print(f"    {el['name'][:40]:<42} comp={comp_val[:8]} ({kind})")
+                print(f"    {el['name'][:40]:<42} ({kind})")
                 continue
-
             if comp_val == pa_widgets.LIST_SIMPLE:
                 tbl, q, label = props.get("table"), props.get("query", ""), "list"
             else:
@@ -378,13 +388,14 @@ def main(argv: list[str] | None = None) -> int:
             except SNError as exc:
                 n = f"ERR {exc}"
                 ok = False
-            print(f"    {el['name'][:40]:<42} comp={comp_val[:8]} group={str(label):<22} rows={n}")
+            print(f"    {el['name'][:40]:<42} group={str(label):<22} rows={n}")
 
     print()
     if not ok:
         print("RESULT: created, but verification failed -- inspect above")
         return 1
-    print(f"RESULT: dashboard {name!r} created with {len(layout)} report widget(s)")
+    total = sum(len(l) for _, _, l in built)
+    print(f"RESULT: dashboard {name!r} built with {len(built)} tab(s), {total} widget(s)")
     print("Open it under Dashboards, or /now/dashboards")
     return 0
 

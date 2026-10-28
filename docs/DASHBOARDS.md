@@ -522,6 +522,59 @@ backfill. `deploy/run-sync.sh` now runs `backfill_geo_category.py` after the
 import (idempotent — one scan, PATCHes only absent/stale values), and warns
 instead of failing the whole sync if it errors.
 
+## 2i. Two tabs, and correcting the filter-scope rule
+
+The dashboard now has two tabs, both built from one spec (`tabs: [...]`; a spec
+with a plain `widgets` list still works and becomes a single "Overview" tab):
+
+| Tab | Contents |
+|---|---|
+| **Overview** | 6 absolute cards, the filter-driven list, two feeds, the map, breakdowns |
+| **Integration & Health** | 6 health metrics, events-per-sync-batch chart, and rich-text runbook (integration details, design summary, backup/recovery) |
+
+`create_dashboard.py` reuses tabs **by name** on `--update`, creates one canvas
+per tab (with `dashboard_tab` set at create time), and creates the widget rows
+per canvas. It now also syncs `par_dashboard.description` from the spec — earlier
+`--update` left stale text behind because only INSERT set it.
+
+### The `followFilters` rule, corrected
+
+§2g said absolute windows must set `followFilters: false`. That was too blunt and
+it broke the category filter: with `false` on the two feeds, selecting **Dating**
+changed nothing in "Happening today" / "next 3 days".
+
+The refined rule:
+
+- `followFilters: false` — **only the six KPI cards**, which are absolute
+  calendar/rolling counts by definition.
+- `followFilters: true` — **the two feeds, the matching list, all charts, and
+  the map.** A user who picks a category expects the lists to narrow.
+
+The feeds were renamed to say so: "Today's events — matches filters" and
+"Coming up — matches filters".
+
+Residual trade-off, accepted deliberately: the feeds keep their own date window,
+so a *When* filter pointing outside that window legitimately returns nothing.
+That is coherent for a widget that asserts a window, and the unbounded
+"Matching the filters" list covers the other case.
+
+### Sparse categories look like a broken filter
+
+Worth recording because it looked like a bug:
+
+```
+Dating, any date                 384
+all categories, today             69
+Dating, today                      0   <- so a filtered feed is correctly empty
+all categories, next 3 days      139
+Dating, next 3 days                0
+Dating, all upcoming               3
+```
+
+Only 3 Dating events exist in the next 60 days (Nov 1, Nov 6, Dec 1). A narrow
+category combined with a 1–3 day window is empty by data, not by defect. The
+in-product note now states this and points at "Matching the filters".
+
 ## 3. What was actually built
 
 ```bash

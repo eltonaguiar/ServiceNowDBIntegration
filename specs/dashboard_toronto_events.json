@@ -1,263 +1,417 @@
 {
-  "_comment": "v5: explicit absolute-window labels + a rich-text note stating the timezone/day semantics, so a near-midnight count of 0 is not mistaken for a fault.",
+  "_comment": "Two tabs: the working Overview, and an Integration & Health tab holding sync metrics, the design summary and the runbook. Widgets are independent of the tab they live on.",
   "name": "Toronto Events",
   "grid": 48,
   "table": "u_toronto_event",
-  "description": "Live view of Toronto events, with a map of where they concentrate.",
-  "widgets": [
+  "description": "Live view of Toronto events with a map of where they concentrate, plus an Integration & Health tab covering sync metrics, design notes and recovery.",
+  "tabs": [
     {
-      "kind": "filter",
-      "label": "Category",
-      "field": "u_primary_category",
-      "filter_kind": "multiselect",
-      "field_type": "string",
-      "x": 0,
-      "y": 0,
-      "w": 16,
-      "h": 4
+      "name": "Overview",
+      "widgets": [
+        {
+          "kind": "filter",
+          "label": "Category",
+          "field": "u_primary_category",
+          "filter_kind": "multiselect",
+          "field_type": "string",
+          "x": 0,
+          "y": 0,
+          "w": 16,
+          "h": 4
+        },
+        {
+          "kind": "filter",
+          "label": "When",
+          "field": "u_start",
+          "filter_kind": "date",
+          "x": 16,
+          "y": 0,
+          "w": 16,
+          "h": 4
+        },
+        {
+          "kind": "filter",
+          "label": "Source",
+          "field": "u_source",
+          "filter_kind": "multiselect",
+          "field_type": "string",
+          "x": 32,
+          "y": 0,
+          "w": 16,
+          "h": 4
+        },
+        {
+          "kind": "heading",
+          "label": "Toronto events at a glance",
+          "level": "1",
+          "x": 0,
+          "y": 4,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "richtext",
+          "label": "How these counts are defined",
+          "html": "<p><b>How these counts are defined</b></p><ul><li><b>All day</b> = 00:00–23:59 of that calendar day, in your session timezone.</li><li><b>Still to come</b> = from this minute until 23:59 today. It falls to <b>0 as the day ends</b>, and just after midnight every day card resets — that is the new day, not an outage.</li><li><b>Rolling</b> = the next 7 / 30 days counted forward from now, not fixed dates.</li><li>The <b>six cards ignore the filters</b> above, so they always show true absolute counts. <b>Everything else</b> on this tab — both feeds, the matching list, the charts and the map — <b>does</b> follow them.</li><li>Some categories are sparse: <b>Dating</b> has 384 events overall but <b>none today</b> and 3 in the next 60 days, so a filtered feed can correctly show 'no data'. Use <b>Matching the filters</b> for an unbounded view of a narrow category.</li><li>An event whose venue has no coordinates cannot be plotted, so the map shows <b>fewer</b> events than the lists.</li></ul>",
+          "x": 0,
+          "y": 6,
+          "w": 48,
+          "h": 10
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Today",
+          "label": "Today — all day",
+          "follow_filters": false,
+          "x": 0,
+          "y": 16,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Still To Come Today",
+          "label": "Today — still to come",
+          "follow_filters": false,
+          "x": 8,
+          "y": 16,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Tomorrow",
+          "label": "Tomorrow — all day",
+          "follow_filters": false,
+          "x": 16,
+          "y": 16,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Next 7 Days",
+          "label": "Next 7 days — rolling",
+          "follow_filters": false,
+          "x": 24,
+          "y": 16,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Next 30 Days",
+          "label": "Next 30 days — rolling",
+          "follow_filters": false,
+          "x": 32,
+          "y": 16,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — All Upcoming",
+          "label": "All upcoming (no end date)",
+          "follow_filters": false,
+          "x": 40,
+          "y": 16,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "heading",
+          "label": "Events in the period you selected",
+          "level": "2",
+          "x": 0,
+          "y": 25,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "list",
+          "label": "Matching the Category / When / Source filters",
+          "query": "u_startISNOTEMPTY^ORDERBYu_start",
+          "columns": [
+            "u_start",
+            "u_title",
+            "u_location",
+            "u_primary_category",
+            "u_is_free"
+          ],
+          "follow_filters": true,
+          "x": 0,
+          "y": 27,
+          "w": 48,
+          "h": 14
+        },
+        {
+          "kind": "heading",
+          "label": "Happening today",
+          "level": "2",
+          "x": 0,
+          "y": 41,
+          "w": 24,
+          "h": 2
+        },
+        {
+          "kind": "heading",
+          "label": "Happening in the next 3 days",
+          "level": "2",
+          "x": 24,
+          "y": 41,
+          "w": 24,
+          "h": 2
+        },
+        {
+          "kind": "list",
+          "label": "Today's events — matches filters",
+          "query": "u_start>=javascript:gs.beginningOfToday()^u_start<=javascript:gs.endOfToday()^ORDERBYu_start",
+          "columns": [
+            "u_start",
+            "u_title",
+            "u_location",
+            "u_primary_category",
+            "u_is_free"
+          ],
+          "follow_filters": true,
+          "x": 0,
+          "y": 43,
+          "w": 24,
+          "h": 18
+        },
+        {
+          "kind": "list",
+          "label": "Coming up — matches filters",
+          "query": "u_start>javascript:gs.endOfToday()^u_start<=javascript:gs.daysAgoStart(-3)^ORDERBYu_start",
+          "columns": [
+            "u_start",
+            "u_title",
+            "u_location",
+            "u_primary_category",
+            "u_is_free"
+          ],
+          "follow_filters": true,
+          "x": 24,
+          "y": 43,
+          "w": 24,
+          "h": 18
+        },
+        {
+          "kind": "heading",
+          "label": "Where events are happening",
+          "level": "2",
+          "x": 0,
+          "y": 61,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "geomap",
+          "label": "Event concentration by venue",
+          "query": "u_location_refISNOTEMPTY",
+          "group_by": "u_location_ref",
+          "follow_filters": true,
+          "x": 0,
+          "y": 63,
+          "w": 28,
+          "h": 22
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — By Category",
+          "label": "By category",
+          "x": 28,
+          "y": 63,
+          "w": 20,
+          "h": 11
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — By Venue",
+          "label": "Top venues",
+          "x": 28,
+          "y": 74,
+          "w": 20,
+          "h": 11
+        },
+        {
+          "kind": "heading",
+          "label": "How the feed is moving",
+          "level": "2",
+          "x": 0,
+          "y": 87,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Newly Added",
+          "label": "Events added to the feed",
+          "trend_field": "sys_created_on",
+          "x": 0,
+          "y": 89,
+          "w": 24,
+          "h": 14
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — By Source",
+          "label": "By source",
+          "x": 24,
+          "y": 89,
+          "w": 24,
+          "h": 14
+        }
+      ]
     },
     {
-      "kind": "filter",
-      "label": "When",
-      "field": "u_start",
-      "filter_kind": "date",
-      "x": 16,
-      "y": 0,
-      "w": 16,
-      "h": 4
-    },
-    {
-      "kind": "filter",
-      "label": "Source",
-      "field": "u_source",
-      "filter_kind": "multiselect",
-      "field_type": "string",
-      "x": 32,
-      "y": 0,
-      "w": 16,
-      "h": 4
-    },
-    {
-      "kind": "heading",
-      "label": "Toronto events at a glance",
-      "level": "1",
-      "x": 0,
-      "y": 4,
-      "w": 48,
-      "h": 2
-    },
-    {
-      "kind": "richtext",
-      "label": "How these counts are defined",
-      "html": "<p><b>How these counts are defined</b></p><ul><li><b>All day</b> = 00:00–23:59 of that calendar day, in your session timezone.</li><li><b>Still to come</b> = from this minute until 23:59 today. It falls to <b>0 as the day ends</b>, and just after midnight all three day cards reset — that is the new day, not an outage.</li><li><b>Rolling</b> = the next 7 / 30 days counted forward from now, not fixed dates.</li><li>These six cards deliberately <b>ignore the filters</b> at the top of the page, so they always show true absolute counts. The list and charts below <b>do</b> follow the filters.</li><li>An event whose venue has no coordinates cannot be plotted, so the map shows <b>fewer</b> events than the lists.</li></ul>",
-      "x": 0,
-      "y": 6,
-      "w": 48,
-      "h": 10
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — Today",
-      "label": "Today — all day",
-      "follow_filters": false,
-      "x": 0,
-      "y": 16,
-      "w": 8,
-      "h": 9
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — Still To Come Today",
-      "label": "Today — still to come",
-      "follow_filters": false,
-      "x": 8,
-      "y": 16,
-      "w": 8,
-      "h": 9
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — Tomorrow",
-      "label": "Tomorrow — all day",
-      "follow_filters": false,
-      "x": 16,
-      "y": 16,
-      "w": 8,
-      "h": 9
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — Next 7 Days",
-      "label": "Next 7 days — rolling",
-      "follow_filters": false,
-      "x": 24,
-      "y": 16,
-      "w": 8,
-      "h": 9
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — Next 30 Days",
-      "label": "Next 30 days — rolling",
-      "follow_filters": false,
-      "x": 32,
-      "y": 16,
-      "w": 8,
-      "h": 9
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — All Upcoming",
-      "label": "All upcoming (no end date)",
-      "follow_filters": false,
-      "x": 40,
-      "y": 16,
-      "w": 8,
-      "h": 9
-    },
-    {
-      "kind": "heading",
-      "label": "Events in the period you selected",
-      "level": "2",
-      "x": 0,
-      "y": 25,
-      "w": 48,
-      "h": 2
-    },
-    {
-      "kind": "list",
-      "label": "Matching the Category / When / Source filters",
-      "query": "u_startISNOTEMPTY^ORDERBYu_start",
-      "columns": [
-        "u_start",
-        "u_title",
-        "u_location",
-        "u_primary_category",
-        "u_is_free"
-      ],
-      "follow_filters": true,
-      "x": 0,
-      "y": 27,
-      "w": 48,
-      "h": 14
-    },
-    {
-      "kind": "heading",
-      "label": "Happening today",
-      "level": "2",
-      "x": 0,
-      "y": 41,
-      "w": 24,
-      "h": 2
-    },
-    {
-      "kind": "heading",
-      "label": "Happening in the next 3 days",
-      "level": "2",
-      "x": 24,
-      "y": 41,
-      "w": 24,
-      "h": 2
-    },
-    {
-      "kind": "list",
-      "label": "Today's events (all day)",
-      "query": "u_start>=javascript:gs.beginningOfToday()^u_start<=javascript:gs.endOfToday()^ORDERBYu_start",
-      "columns": [
-        "u_start",
-        "u_title",
-        "u_location",
-        "u_primary_category",
-        "u_is_free"
-      ],
-      "follow_filters": false,
-      "x": 0,
-      "y": 43,
-      "w": 24,
-      "h": 18
-    },
-    {
-      "kind": "list",
-      "label": "Coming up (next 3 days)",
-      "query": "u_start>javascript:gs.endOfToday()^u_start<=javascript:gs.daysAgoStart(-3)^ORDERBYu_start",
-      "columns": [
-        "u_start",
-        "u_title",
-        "u_location",
-        "u_primary_category",
-        "u_is_free"
-      ],
-      "follow_filters": false,
-      "x": 24,
-      "y": 43,
-      "w": 24,
-      "h": 18
-    },
-    {
-      "kind": "heading",
-      "label": "Where events are happening",
-      "level": "2",
-      "x": 0,
-      "y": 61,
-      "w": 48,
-      "h": 2
-    },
-    {
-      "kind": "geomap",
-      "label": "Event concentration by venue",
-      "query": "u_location_refISNOTEMPTY",
-      "group_by": "u_location_ref",
-      "follow_filters": true,
-      "x": 0,
-      "y": 63,
-      "w": 28,
-      "h": 22
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — By Category",
-      "label": "By category",
-      "x": 28,
-      "y": 63,
-      "w": 20,
-      "h": 11
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — By Venue",
-      "label": "Top venues",
-      "x": 28,
-      "y": 74,
-      "w": 20,
-      "h": 11
-    },
-    {
-      "kind": "heading",
-      "label": "How the feed is moving",
-      "level": "2",
-      "x": 0,
-      "y": 87,
-      "w": 48,
-      "h": 2
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — Newly Added",
-      "label": "Events added to the feed",
-      "trend_field": "sys_created_on",
-      "x": 0,
-      "y": 89,
-      "w": 24,
-      "h": 14
-    },
-    {
-      "kind": "chart",
-      "report": "Toronto Events — By Source",
-      "label": "By source",
-      "x": 24,
-      "y": 89,
-      "w": 24,
-      "h": 14
+      "name": "Integration & Health",
+      "widgets": [
+        {
+          "kind": "heading",
+          "label": "Integration health",
+          "level": "1",
+          "x": 0,
+          "y": 0,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — All",
+          "label": "Events synced",
+          "follow_filters": false,
+          "x": 0,
+          "y": 2,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Mapped Venues",
+          "label": "Mapped (on map)",
+          "follow_filters": false,
+          "x": 8,
+          "y": 2,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Unmapped",
+          "label": "Unmapped (no coords)",
+          "follow_filters": false,
+          "x": 16,
+          "y": 2,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — No Category",
+          "label": "Missing category",
+          "follow_filters": false,
+          "x": 24,
+          "y": 2,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Data Quality: No Start Date",
+          "label": "Missing start date",
+          "follow_filters": false,
+          "x": 32,
+          "y": 2,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — Added Last 7 Days",
+          "label": "Added last 7 days",
+          "follow_filters": false,
+          "x": 40,
+          "y": 2,
+          "w": 8,
+          "h": 9
+        },
+        {
+          "kind": "heading",
+          "label": "Sync history",
+          "level": "2",
+          "x": 0,
+          "y": 11,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "chart",
+          "report": "Toronto Events — By Sync Batch",
+          "label": "Events per sync batch",
+          "follow_filters": false,
+          "x": 0,
+          "y": 13,
+          "w": 48,
+          "h": 16
+        },
+        {
+          "kind": "heading",
+          "label": "Integration details",
+          "level": "2",
+          "x": 0,
+          "y": 29,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "richtext",
+          "label": "Integration details",
+          "html": "<p><b>Source &amp; target</b></p><ul><li>Source feed: <code>https://findtorontoevents.ca/events.json</code> (11,758 records)</li><li>Target: <code>u_toronto_event</code> — 26 columns, 2 of them derived</li><li>Upsert key: <code>u_event_id</code> — re-runs update, never duplicate</li><li>Transport: HTTPS + Basic auth against <code>/api/now/table/u_toronto_event</code></li></ul><p><b>Schedule</b></p><ul><li>systemd timer <code>sn-events-sync.timer</code>, <code>OnCalendar=*-*-* 03:00:00 America/Toronto</code>, <code>Persistent=true</code></li><li>Cron alternative: <code>deploy/run-sync.sh</code> (also runs the derive step)</li><li>Credentials live in <code>/etc/sn-sync.env</code> (0600) — never in the repo</li></ul><p><b>Derived after every sync</b></p><ul><li><code>u_primary_category</code> — first token of the <code>u_categories</code> CSV</li><li><code>u_location_ref</code> → <code>cmn_location</code> — what gives the map its coordinates</li><li>If this step is skipped, new rows vanish from the category chart and the map</li></ul><p><b>Timezone</b></p><ul><li>The feed stamps Toronto <i>local</i> times with a <code>Z</code> suffix. The import treats <code>Z</code> as America/Toronto and converts to true UTC, DST-aware.</li></ul>",
+          "x": 0,
+          "y": 31,
+          "w": 48,
+          "h": 18
+        },
+        {
+          "kind": "heading",
+          "label": "Dashboard design",
+          "level": "2",
+          "x": 0,
+          "y": 49,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "richtext",
+          "label": "Dashboard design summary",
+          "html": "<p><b>Structure</b></p><ul><li><b>Overview</b> — the working view: at-a-glance counts, two feeds, the map, breakdowns</li><li><b>Integration &amp; Health</b> — this tab: sync metrics, design notes, runbook</li><li>Every widget is generated from <code>specs/dashboard_toronto_events.json</code></li></ul><p><b>Two rules the layout depends on</b></p><ul><li><b>Absolute windows ignore filters</b> (<code>followFilters: false</code>): Today / Tomorrow / 7 / 30 days keep their own meaning. Filter-driven widgets use <code>true</code>, so the Category / When / Source pills only affect what they should.</li><li><b>The canvas layout is a cache.</b> The renderer reads <code>par_dashboard_widget</code> rows, joined to the layout by a shared <code>sys_id</code>. A canvas with layout entries and no matching widget rows renders empty.</li></ul><p><b>Known limits</b></p><ul><li>~2,300 events cannot be mapped: their feed rows carry no coordinates</li><li>Rebuild with <code>--update</code>; delete-then-create mints a new <code>sys_id</code> and breaks every saved link</li></ul>",
+          "x": 0,
+          "y": 51,
+          "w": 48,
+          "h": 16,
+          "level": "2"
+        },
+        {
+          "kind": "heading",
+          "label": "Backup and rebuild",
+          "level": 2,
+          "x": 0,
+          "y": 67,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "richtext",
+          "label": "Backup and rebuild",
+          "html": "<p><b>What backs this up</b></p><ul><li><b>The repo is the primary backup.</b> <code>fresh_instance.sh</code> rebuilds the table, columns, reports and this dashboard from the specs on a blank instance.</li><li><b>Update sets do capture the configuration.</b> On this instance the <i>Default</i> update set already holds 8 <code>sys_db_object</code>, 50 <code>sys_dictionary</code>, 19 <code>sys_report</code> and all PAR dashboard / canvas / widget records — exportable as XML.</li><li><b>What an update set will NOT carry:</b> <code>sys_report_map_source</code> (0 captured), <code>cmn_location</code> rows (0) and the event data itself. Those must come from the repo scripts and the source feed.</li><li><b>GitHub source linkage</b> (<code>sys_repo_config</code>) applies to <i>scoped applications</i>. These records are global scope, so it is not available without moving everything into an app.</li></ul><p><b>Recovery order</b>: schema → reports → dashboard → backfill → sync.</p>",
+          "x": 0,
+          "y": 69,
+          "w": 48,
+          "h": 16,
+          "level": "2"
+        }
+      ]
     }
   ]
 }
