@@ -123,7 +123,11 @@ give orders to.
 
 ## The five options, with pros and cons
 
-### Option 1 — Remote Table (a "scripted virtual table")
+Click any option to expand it. The comparison table and decision order stay
+visible below — collapsing is only to keep the page readable.
+
+<details>
+<summary><strong>Option 1 — Remote Table (a "scripted virtual table")</strong> &nbsp;·&nbsp; live view, nothing stored</summary>
 
 Looks like a real table in ServiceNow. Has columns, shows in lists, supports
 ACLs. But the rows aren't stored anywhere — a **script** produces them fresh
@@ -161,9 +165,12 @@ trying to avoid.
 > reorganise it, and if the neighbour's window is shut (no HTTP endpoint), you
 > see nothing at all.
 
+</details>
+
 ---
 
-### Option 2 — Import Set, pulling over JDBC
+<details>
+<summary><strong>Option 2 — Import Set, pulling over JDBC</strong> &nbsp;·&nbsp; the enterprise pattern</summary>
 
 A **data source** of type JDBC connects to your database, reads a table, drops
 the rows into a staging area, then a **transform map** copies them into a real
@@ -187,9 +194,12 @@ connection details.
 >
 > Proper, reliable, and a lot of setup. Worth it at scale.
 
+</details>
+
 ---
 
-### Option 3 — Import Set, pulling a JSON/CSV file over HTTP
+<details>
+<summary><strong>Option 3 — Import Set, pulling a JSON/CSV file over HTTP</strong> &nbsp;·&nbsp; no driver needed</summary>
 
 Same as Option 2, but instead of JDBC the data source downloads a **file from a
 URL**. ServiceNow natively supports JSON and CSV, and you can route the download
@@ -207,9 +217,12 @@ through the MID Server.
 > a website. Simpler — no key needed. But they download the *entire* spreadsheet
 > every time, even if only three rows changed.
 
+</details>
+
 ---
 
-### Option 4 — Import Set, **pushed** via the REST Import Set API
+<details>
+<summary><strong>Option 4 — Import Set, pushed via the REST Import Set API</strong> &nbsp;·&nbsp; cheapest, easiest to debug</summary>
 
 Your own script — Python, PHP, whatever you already have — slices the data into
 batches and posts them:
@@ -234,9 +247,12 @@ POST /api/now/import/<staging_table>
 > Cheapest and simplest option. The trade-off is that remembering to go is now
 > your job.
 
+</details>
+
 ---
 
-### Option 5 — MID Server custom probe + sensor
+<details>
+<summary><strong>Option 5 — MID Server custom probe + sensor</strong> &nbsp;·&nbsp; most power, steepest curve</summary>
 
 Write your own **probe** that runs on the MID (SSH, PowerShell, a script), and a
 **sensor** that parses its output. This is the most powerful AND most
@@ -253,6 +269,8 @@ low-level option — you're programming the Discovery engine directly.
 > through a window, count the boxes, and write the count on a clipboard.
 >
 > Incredibly flexible. Also now you own a robot.
+
+</details>
 
 ---
 
@@ -316,8 +334,59 @@ Answer these in order and stop at the first match.
 
 # Part 2 — Creating tables programmatically
 
-This is what the scripts in this repo do. It's independent of which transport
-you chose above — you need a destination table either way.
+## First: which of the five options is this?
+
+**None of them — and that's deliberate.** Part 2 is the *destination* half of
+every option. Options 2, 3, 4 and 5 all need a real ServiceNow table to land in,
+and that table is exactly what this section builds. Whichever transport you
+picked in Part 1 plugs into it unchanged.
+
+The worked example — `u_toronto_event` — is aimed at **Option 3 (JSON pull)** and
+works identically for **Option 4 (REST push)**. What it is deliberately *not* is
+a Remote Table:
+
+| A Remote Table would… | Why that's wrong for this data |
+|---|---|
+| need an HTTP shim in front of MySQL | more work than just pushing (Option 4) |
+| be read-only | the transform map has to write rows |
+| have no business rules | 2,341 of 11,945 rows have null coordinates needing handling |
+| refuse to participate in the CMDB | blocks ever relating an event to a CI |
+| re-check ACLs on every row | noticeable at 11,945 rows |
+| not survive a ServiceNow restart | nothing is stored — it re-runs the script every query |
+
+And why Option 3/4 rather than Option 2 (JDBC)?
+
+- The source is **already** a public JSON endpoint. No driver, no port 3306, no
+  network path to arrange.
+- 11,945 rows fits comfortably in one fetch — no chunking needed.
+- Both land in the same table, so switching later costs nothing.
+
+### What this repo automates, and what it doesn't
+
+| Step | Automated here? | How |
+|---|---|---|
+| Create the target table | ✅ | `create_table.py` |
+| Create all 21 columns | ✅ | `create_table.py` |
+| Prove the columns store what you send | ✅ | `verify_table.py` |
+| Row counts and field inspection | ✅ | `sn_api.py` |
+| Create ACLs | ❌ | UI only — platform restriction, see [Part 5](#part-5--acls-the-one-thing-you-must-do-in-the-ui) |
+| Create the data source | ❌ | ServiceNow form (automatable via `POST sys_data_source` — not attempted in this repo) |
+| Create the transform map | ❌ | ServiceNow form |
+| Schedule the import | ❌ | ServiceNow form (`scheduled_import_set`) |
+
+The bottom four are one-time setup through forms, and they encode decisions you
+want to be deliberate about — which fields map where, what coalesces, how often
+it runs. Writing the table first means those forms have something to point at.
+
+> ### ELI5 — what this section actually is
+> Part 1 was about **how the boxes get delivered**. This section is about **where
+> you put the shelves**.
+>
+> You build the shelves once. Then any delivery method — van, courier, or you
+> carrying them — puts boxes on the same shelves.
+>
+> The shelves are described in a text file. The script builds them. If you run it
+> twice, it notices the shelves already exist and builds nothing new.
 
 ## Setup (once)
 
