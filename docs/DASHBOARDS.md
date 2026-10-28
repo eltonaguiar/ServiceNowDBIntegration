@@ -470,6 +470,58 @@ filters; a widget that represents "what you selected" must.**
 `specs/reports_toronto_events.json` + `create_reports.py` create **12 reports** on
 `u_toronto_event`:
 
+## 2h. Saying what "Today" means, and why the map shows fewer rows
+
+### Two numbers that look contradictory but aren't
+
+The map reported **59** for a day on which the "Today's events" list showed
+**66**. Measured, not guessed:
+
+| filter | count |
+|---|---|
+| all events on 2026-10-28 | **66** |
+| + has a location reference (map-eligible) | **59** |
+| + state = ON | 59 |
+| + city = Toronto | 59 |
+
+The 7-row gap is events whose venue has **no coordinates in the feed** — North
+York Centre, Edill's Coffee House, Cafe Princess, 1750 Finch Avenue East, Rita
+Café, Starbucks @ Yonge & Hwy 7 and one more. Their feed rows carry no lat/lng
+at all, so no `cmn_location` record could be created and the map cannot place
+them. Across the whole table: **9,600 map-eligible, 2,344 not**.
+
+That is a data-coverage limit, not a query bug. The dashboard now says so in a
+note above the cards rather than leaving the user to discover it.
+
+### Explicit window labels
+
+The cards were renamed so a mid-sentence reading is unambiguous, and a rich-text
+widget states the rules in-product:
+
+- `Today — all day`, `Tomorrow — all day` = 00:00–23:59 of that calendar day
+- `Today — still to come` = now → 23:59 today, so it **falls to 0 as the day
+  ends**; just after midnight every day card resets (the new day, not a fault)
+- `Next 7 days — rolling`, `Next 30 days — rolling` = forward from this minute
+- `All upcoming (no end date)` = everything still ahead
+
+The note also states that these cards **ignore** the page filters while the list
+and charts below follow them — the single most confusing asymmetry on the page.
+
+Give the rich-text widget 10 grid rows (`h: 10`). At `h: 4` the five bullets
+overflow and the widget scrolls internally, which hides the very explanation it
+exists to show.
+
+### The sync must derive the map fields, or the map decays
+
+`import_events.py` does not populate `u_primary_category` or `u_location_ref` —
+they are derived. Anything the nightly sync **inserts** is therefore missing
+from the category chart and invisible on the map until a backfill runs.
+
+This was found live: three rows had drifted within hours of the last manual
+backfill. `deploy/run-sync.sh` now runs `backfill_geo_category.py` after the
+import (idempotent — one scan, PATCHes only absent/stale values), and warns
+instead of failing the whole sync if it errors.
+
 ## 3. What was actually built
 
 ```bash

@@ -1,5 +1,5 @@
 {
-  "_comment": "Toronto Events dashboard v4: adds the Geomap. follow_filters=False on absolute windows (Today/Tomorrow/7d/30d, the two feeds); the map, the matching list and the charts follow filters.",
+  "_comment": "v5: explicit absolute-window labels + a rich-text note stating the timezone/day semantics, so a near-midnight count of 0 is not mistaken for a fault.",
   "name": "Toronto Events",
   "grid": 48,
   "table": "u_toronto_event",
@@ -47,43 +47,72 @@
       "h": 2
     },
     {
-      "kind": "chart",
-      "report": "Toronto Events — Today",
-      "label": "Today",
-      "follow_filters": false,
+      "kind": "richtext",
+      "label": "How these counts are defined",
+      "html": "<p><b>How these counts are defined</b></p><ul><li><b>All day</b> = 00:00–23:59 of that calendar day, in your session timezone.</li><li><b>Still to come</b> = from this minute until 23:59 today. It falls to <b>0 as the day ends</b>, and just after midnight all three day cards reset — that is the new day, not an outage.</li><li><b>Rolling</b> = the next 7 / 30 days counted forward from now, not fixed dates.</li><li>These six cards deliberately <b>ignore the filters</b> at the top of the page, so they always show true absolute counts. The list and charts below <b>do</b> follow the filters.</li><li>An event whose venue has no coordinates cannot be plotted, so the map shows <b>fewer</b> events than the lists.</li></ul>",
       "x": 0,
       "y": 6,
-      "w": 12,
+      "w": 48,
+      "h": 10
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — Today",
+      "label": "Today — all day",
+      "follow_filters": false,
+      "x": 0,
+      "y": 16,
+      "w": 8,
+      "h": 9
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — Still To Come Today",
+      "label": "Today — still to come",
+      "follow_filters": false,
+      "x": 8,
+      "y": 16,
+      "w": 8,
       "h": 9
     },
     {
       "kind": "chart",
       "report": "Toronto Events — Tomorrow",
-      "label": "Tomorrow",
+      "label": "Tomorrow — all day",
       "follow_filters": false,
-      "x": 12,
-      "y": 6,
-      "w": 12,
+      "x": 16,
+      "y": 16,
+      "w": 8,
       "h": 9
     },
     {
       "kind": "chart",
       "report": "Toronto Events — Next 7 Days",
-      "label": "Next 7 days",
+      "label": "Next 7 days — rolling",
       "follow_filters": false,
       "x": 24,
-      "y": 6,
-      "w": 12,
+      "y": 16,
+      "w": 8,
       "h": 9
     },
     {
       "kind": "chart",
       "report": "Toronto Events — Next 30 Days",
-      "label": "Next 30 days",
+      "label": "Next 30 days — rolling",
       "follow_filters": false,
-      "x": 36,
-      "y": 6,
-      "w": 12,
+      "x": 32,
+      "y": 16,
+      "w": 8,
+      "h": 9
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — All Upcoming",
+      "label": "All upcoming (no end date)",
+      "follow_filters": false,
+      "x": 40,
+      "y": 16,
+      "w": 8,
       "h": 9
     },
     {
@@ -91,7 +120,7 @@
       "label": "Events in the period you selected",
       "level": "2",
       "x": 0,
-      "y": 15,
+      "y": 25,
       "w": 48,
       "h": 2
     },
@@ -108,7 +137,7 @@
       ],
       "follow_filters": true,
       "x": 0,
-      "y": 17,
+      "y": 27,
       "w": 48,
       "h": 14
     },
@@ -117,7 +146,7 @@
       "label": "Happening today",
       "level": "2",
       "x": 0,
-      "y": 31,
+      "y": 41,
       "w": 24,
       "h": 2
     },
@@ -126,13 +155,13 @@
       "label": "Happening in the next 3 days",
       "level": "2",
       "x": 24,
-      "y": 31,
+      "y": 41,
       "w": 24,
       "h": 2
     },
     {
       "kind": "list",
-      "label": "Today's events",
+      "label": "Today's events (all day)",
       "query": "u_start>=javascript:gs.beginningOfToday()^u_start<=javascript:gs.endOfToday()^ORDERBYu_start",
       "columns": [
         "u_start",
@@ -143,13 +172,13 @@
       ],
       "follow_filters": false,
       "x": 0,
-      "y": 33,
+      "y": 43,
       "w": 24,
       "h": 18
     },
     {
       "kind": "list",
-      "label": "Coming up",
+      "label": "Coming up (next 3 days)",
       "query": "u_start>javascript:gs.endOfToday()^u_start<=javascript:gs.daysAgoStart(-3)^ORDERBYu_start",
       "columns": [
         "u_start",
@@ -160,7 +189,7 @@
       ],
       "follow_filters": false,
       "x": 24,
-      "y": 33,
+      "y": 43,
       "w": 24,
       "h": 18
     },
@@ -169,7 +198,7 @@
       "label": "Where events are happening",
       "level": "2",
       "x": 0,
-      "y": 51,
+      "y": 61,
       "w": 48,
       "h": 2
     },
@@ -180,7 +209,7 @@
       "group_by": "u_location_ref",
       "follow_filters": true,
       "x": 0,
-      "y": 53,
+      "y": 63,
       "w": 28,
       "h": 22
     },
@@ -189,7 +218,7 @@
       "report": "Toronto Events — By Category",
       "label": "By category",
       "x": 28,
-      "y": 53,
+      "y": 63,
       "w": 20,
       "h": 11
     },
@@ -198,7 +227,7 @@
       "report": "Toronto Events — By Venue",
       "label": "Top venues",
       "x": 28,
-      "y": 64,
+      "y": 74,
       "w": 20,
       "h": 11
     },
@@ -207,7 +236,7 @@
       "label": "How the feed is moving",
       "level": "2",
       "x": 0,
-      "y": 77,
+      "y": 87,
       "w": 48,
       "h": 2
     },
@@ -217,7 +246,7 @@
       "label": "Events added to the feed",
       "trend_field": "sys_created_on",
       "x": 0,
-      "y": 79,
+      "y": 89,
       "w": 24,
       "h": 14
     },
@@ -226,7 +255,7 @@
       "report": "Toronto Events — By Source",
       "label": "By source",
       "x": 24,
-      "y": 79,
+      "y": 89,
       "w": 24,
       "h": 14
     }

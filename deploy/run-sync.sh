@@ -41,8 +41,23 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 cd "$REPO_DIR"
 
 # -u = unbuffered, so cron log shows progress instead of one dump at the end.
-exec /usr/bin/python3 -u import_events.py \
+/usr/bin/python3 -u import_events.py \
     --source "$SOURCE" \
     --workers "$WORKERS" \
     --batch-id "cron-$STAMP" \
     --report "$LOG_DIR/report-$STAMP.json"
+
+# ---------------------------------------------------------------------------
+# Derive the two columns the dashboard depends on.
+#
+# import_events.py does not set these: u_primary_category (first CSV token of
+# u_categories) and u_location_ref (venue -> cmn_location, which is what gives
+# the map its coordinates). Without this step, every record the sync INSERTs
+# would be missing from the category chart and invisible on the map until
+# somebody ran the backfill by hand. Found the hard way: three rows had drifted
+# three hours after the last manual run.
+#
+# The script is idempotent -- it only PATCHes rows whose values are absent or
+# stale -- so running it after every sync costs one scan.
+/usr/bin/python3 -u backfill_geo_category.py --workers "$WORKERS" \
+    || echo "WARN: derived-field backfill failed; map/category will lag" >&2

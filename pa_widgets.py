@@ -250,6 +250,17 @@ def build_widget_row(element: dict, canvas_id: str, dash_id: str) -> dict:
 
 # --------------------------------------------------------------- headings
 HEADING = "1f6e0643eca7a637e36bd7833549ec9e"   # Heading  [20 native rows]
+RICH_TEXT = "2d56f06d55f46bbd4e79b5e624beb940"  # Rich text [2 native rows]
+
+
+def build_richtext(html: str) -> str:
+    """A block of explanatory prose.
+
+    Native rich-text widgets carry exactly one prop: `html`. Useful for stating
+    assumptions the numbers depend on -- for example which timezone the
+    calendar-day windows are counted in.
+    """
+    return json.dumps({"html": html})
 
 
 def build_geopoint(template: dict,

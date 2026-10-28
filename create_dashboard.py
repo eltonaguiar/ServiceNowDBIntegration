@@ -109,6 +109,10 @@ def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: di
             props = pa_widgets.build_heading(
                 pa_widgets.load_template("heading"), label, w.get("level", "2"))
 
+        elif kind == "richtext":
+            comp = pa_widgets.RICH_TEXT
+            props = pa_widgets.build_richtext(w.get("html", ""))
+
         elif kind == "list":
             comp = pa_widgets.LIST_SIMPLE
             props = pa_widgets.build_list(
@@ -356,8 +360,9 @@ def main(argv: list[str] | None = None) -> int:
                 continue
 
             # Headings carry no data; filters are controls, not queries.
-            if comp_val in (pa_widgets.HEADING, pa_widgets.FILTER):
-                kind = "heading" if comp_val == pa_widgets.HEADING else "filter"
+            if comp_val in (pa_widgets.HEADING, pa_widgets.FILTER, pa_widgets.RICH_TEXT):
+                kind = {pa_widgets.HEADING: "heading", pa_widgets.FILTER: "filter",
+                        pa_widgets.RICH_TEXT: "richtext"}[comp_val]
                 print(f"    {el['name'][:40]:<42} comp={comp_val[:8]} ({kind})")
                 continue
 

@@ -145,6 +145,22 @@
       "field": "",
       "filter": "sys_created_on>=javascript:gs.daysAgoStart(14)^EQ",
       "description": "How many records the sync has been adding over the last two weeks."
+    },
+    {
+      "title": "Toronto Events — Still To Come Today",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_start>javascript:gs.endOfCurrentMinute()^u_start<=javascript:gs.endOfToday()^EQ",
+      "description": "Only events that have not started yet today. Counts down to zero as the day runs out."
+    },
+    {
+      "title": "Toronto Events — All Upcoming",
+      "type": "single_score",
+      "aggregate": "COUNT",
+      "field": "",
+      "filter": "u_start>javascript:gs.endOfCurrentMinute()^EQ",
+      "description": "Everything still ahead, no upper bound."
     }
   ]
 }
