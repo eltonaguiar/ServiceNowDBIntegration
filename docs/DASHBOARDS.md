@@ -316,39 +316,60 @@ draws the wrong series. `pa_widgets.build_props()` does both.
 | `u_primary_category` | string 50 | `u_categories` is a CSV: 221 distinct combinations for 11,940 events. The first token gives 11 clean buckets (Arts 4,475 / General 3,042 / Sports 1,266 …), which is what makes a category filter usable. `u_categories` is untouched for search. |
 | `u_location_ref` | reference → `cmn_location` | 440 `cmn_location` records created, one per venue with coordinates; 9,599 events referenced. Verified by dot-walking `u_location_ref.latitude`. |
 
-## 2e. The geo map: where it stands (honest status)
+## 2e. The geo map: solved
 
-The Geomap is **not** on the dashboard yet. Three things are known and three are
-not, and guessing produced three wrong claims earlier in this project, so the
-build stops at the verified boundary.
+The Geomap is on the dashboard. The three unknowns from the first attempt are
+resolved, and the first was the real blocker.
 
-Verified:
-1. `cmn_location` records exist for all 440 venues, with latitude/longitude.
-2. `u_location_ref` is a real reference; `u_toronto_event.u_location_ref.latitude`
-   resolves over REST.
-3. Map sources are a **parent/child hierarchy**. A business rule named
-   *"If parent is empty set empty values"* nulls `type`, `type_mapping` and
-   `join_by_column` unless `parent` is set — which is why writing those fields on
-   a standalone record silently does nothing (HTTP 200, `sys_mod_count`
-   increments, values stay empty). The native chain is:
+**1. `mapSysId` is the BASEMAP, not the data mapping.** It references
+**`sys_report_map`** — the GeoJSON geometry records (World, countries, states).
+The native widget uses `93b8a3a2d7101200bd4a4ebfae61033a`, `key=world`. That id
+is *not* in `sys_report_map_source`, which is why searching there came up empty
+and the prop looked unresolvable. It was found by querying every table whose
+name contains "map" for that sys_id: exactly one hit.
 
-   ```
-   root  parent=''      type=''                 aggregate_field=location
-   L1    parent=root    type=Level 1  mapping   aggregate_field=location.country
-   L2    parent=L1      type=Level 2  mapping   aggregate_field=location.state
-   L3    parent=L2      type=Level 3  use_lat_lon  aggregate_field=location.city
-   ```
+**2. Map sources are a parent/child chain.** A business rule named *"If parent is
+empty set empty values"* nulls `type`, `type_mapping` and `join_by_column` unless
+`parent` is set. The write returns HTTP 200 and `sys_mod_count` increments while
+the values stay empty — a silent no-op. Mirrored from native:
 
-Not verified, and therefore not shipped:
-1. Which `aggregate_field` yields one point per **venue** rather than one per
-   city. The native L3 uses `location.city`, a name string, not coordinates.
-2. `Geomap.mapSysId` on the native widget (`93b8a3a2…`) does **not** exist in
-   `sys_report_map_source`, so the prop points at an entity not yet identified.
-3. Whether the resulting widget renders at all. Nothing in the REST API can
-   confirm pixels.
+| level | parent | type | type_mapping | aggregate_field |
+|---|---|---|---|---|
+| root | — | — | — | `u_location_ref` |
+| Level 1 | root | Level 1 | mapping | `u_location_ref.country` |
+| Level 2 | Level 1 | Level 2 | mapping | `u_location_ref.state` |
+| Level 3 | Level 2 | Level 3 | **use_lat_lon** | `u_location_ref` |
 
-Until those are settled the "Top venues" horizontal bar stands in: it answers
-"where are events happening" from the same data, and it renders.
+`create_map_source.py` builds this and **re-reads each record to assert
+`type_mapping` actually persisted** — trusting the 200 was the earlier mistake.
+
+**3. Coordinates come from a location record.** All 52 native map sources walk a
+reference; none reads a bare lat/lng column pair. `u_location_ref` ->
+`cmn_location` (440 records, 9,599 references, built by
+`backfill_geo_category.py`) supplies latitude/longitude, and
+`type_mapping=use_lat_lon` tells the map to use it.
+
+### The widget
+
+```
+component            Geomap             9c8c44bd78fe5918950e0db8e286211d
+mapSysId             World basemap      93b8a3a2d7101200bd4a4ebfae61033a
+dataSources[0]       u_toronto_event    filterQuery u_location_refISNOTEMPTY^EQ
+metrics[0]           COUNT
+groupBy[0]           u_location_ref
+filterConfigurations @state.parFilters
+followFilters        true
+```
+
+`@state.parFilters` + `followFilters: true` is what makes the Category / When /
+Source pills redraw the map — the same pairing native filter-aware widgets use.
+
+Pre-flight: **9,598 rows** sit behind the map (events whose venue resolved to a
+`cmn_location`); the remaining ~2,300 have no feed coordinates.
+
+**Still needs a human:** that it paints. Every input is verified — basemap,
+mapping chain including persistence, reference resolution via dot-walk, and row
+count — but no API confirms rendering.
 
 ## 2f. Dashboard filters: the `dynamicTimeRange` trap
 
@@ -448,6 +469,8 @@ filters; a widget that represents "what you selected" must.**
 
 `specs/reports_toronto_events.json` + `create_reports.py` create **12 reports** on
 `u_toronto_event`:
+
+## 3. What was actually built
 
 ```bash
 python create_reports.py specs/reports_toronto_events.json --dry-run
