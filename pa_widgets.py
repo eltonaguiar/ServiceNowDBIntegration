@@ -74,12 +74,29 @@ REPORT_TYPE_TO_VIZ = {
 }
 
 DEFAULT_TEMPLATE = Path(__file__).with_name("specs") / "pa_widget_template.json"
+TEMPLATE_DIR = Path(__file__).with_name("specs") / "templates"
 
 
-def load_template(path: Path | str | None = None) -> dict:
-    """The native prop skeleton. Cosmetic only -- no data references."""
-    p = Path(path) if path else DEFAULT_TEMPLATE
-    return json.loads(p.read_text(encoding="utf-8"))
+def load_template(kind: str | None = None, path: Path | str | None = None) -> dict:
+    """Cosmetic prop skeleton for a visualization.
+
+    A single shared template does NOT work: each visualization carries its own
+    `extensionType`, `dataCategory` and `trendBy`. Rendering a chart whose
+    template lacks them fails with:
+
+        Invalid configuration -- A 'Trend By' must be selected for the
+        visualization to render.
+
+    So each kind gets a template captured from a native widget that renders.
+    Fall back to the generic skeleton when no per-kind file exists.
+    """
+    if path:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    if kind:
+        cand = TEMPLATE_DIR / f"chart_{kind}.json"
+        if cand.exists():
+            return json.loads(cand.read_text(encoding="utf-8"))
+    return json.loads(DEFAULT_TEMPLATE.read_text(encoding="utf-8"))
 
 
 def _b64(text: str) -> str:
@@ -105,7 +122,8 @@ def build_props(template: dict,
                 label: str,
                 filter_query: str = "",
                 group_by: str = "",
-                viz: str = "column") -> str:
+                viz: str = "column",
+                trend_field: str = "") -> str:
     """Return the JSON string for par_dashboard_widget.component_props.
 
     filter_query is a ServiceNow encoded query. Native widgets terminate theirs
@@ -137,9 +155,10 @@ def build_props(template: dict,
         "dataCategories": ["trend", "group", "simple"],
     }]
 
+    metric_id = _metric_id(src)
     props["metrics"] = [{
         "dataSource": src,
-        "id": _metric_id(src),
+        "id": metric_id,
         "label": label,
         "aggregateFunction": "COUNT",
         "axisId": "primary",
@@ -164,6 +183,22 @@ def build_props(template: dict,
         }]
     else:
         props["groupBy"] = []
+
+    # A native template may carry a trendBy pointing at ANOTHER widget's metric.
+    # Leaving those ids alone renders the wrong series (or nothing), so remap
+    # them onto this widget's own metric and date field.
+    tb = props.get("trendBy")
+    if isinstance(tb, dict) and tb.get("trendByFields"):
+        for f in tb["trendByFields"]:
+            if isinstance(f, dict):
+                f["metric"] = metric_id
+                if trend_field:
+                    f["field"] = trend_field
+
+    # `dataCategory` is what tells the renderer whether to expect a trend axis.
+    # Omit it on a grouped chart and the platform demands a 'Trend By'.
+    if "dataCategory" in props or group_by:
+        props["dataCategory"] = "group" if group_by else "simple"
 
     props["headerTitle"] = label
     props["yAxisTitle"] = label if group_by else ""
@@ -192,7 +227,123 @@ def build_widget_row(element: dict, canvas_id: str, dash_id: str) -> dict:
         "component_props": element["component_props"],
         "required_translations": json.dumps([{
             "code": f"PAR_DASHBOARD.{dash_id}.{element['sys_id']}",
-            "message": props.get("headerTitle", element["name"]),
+            "message": props.get("headerTitle") or props.get("listTitle")
+                       or props.get("label") or element["name"],
             "comment": "",
         }]),
     }
+
+
+# --------------------------------------------------------------- headings
+HEADING = "1f6e0643eca7a637e36bd7833549ec9e"   # Heading  [20 native rows]
+
+
+def build_heading(template: dict, label: str, level: str = "2") -> str:
+    """A section title. `variant: header-secondary` is what native rows use."""
+    p = copy.deepcopy(template)
+    p["label"] = label
+    p["level"] = str(level)
+    return json.dumps(p)
+
+
+# --------------------------------------------------------------- record lists
+LIST_SIMPLE = "2b1c080881e05dc63b917044290b233f"   # List - Simple  [18 native rows]
+
+
+def build_list(template: dict, table: str, label: str, query: str = "",
+               columns: list[str] | None = None) -> str:
+    """A live record list -- this is the "feed" of upcoming events.
+
+    `columns` are element names on `table`; the native widget stores them as a
+    comma-separated string. Keep this list short: the widget renders a fixed
+    7 columns at most (maxColumns).
+    """
+    p = copy.deepcopy(template)
+    p["table"] = table
+    p["listTitle"] = label
+    p["query"] = (query or "").strip()
+    if columns:
+        p["columns"] = ",".join(columns)
+    p["maxColumns"] = max(p.get("maxColumns", 7), len(columns or []))
+    # Reading is the whole point of this dashboard, so kill the editing affordances.
+    p["hideInlineEditing"] = True
+    p["hideRowSelector"] = False
+    p["hideColumnFiltering"] = False   # let people narrow the feed inline
+    p["hideColumnSorting"] = False
+    p["hideViewAll"] = False
+    return json.dumps(p)
+
+
+# --------------------------------------------------------------- filters
+FILTER = "226449101138d0dff1abe0e1566c8b2a"   # Filter  [15 native rows]
+
+# Dashboard widgets pick up filters through this magic string. Native widgets
+# set exactly this value on every filter-aware component.
+PAR_FILTERS = "@state.parFilters"
+
+
+def _filter_target(table: str, field: str, field_type: str = "string") -> dict:
+    return {
+        "type": "table",
+        "payload": {"table": table, "field": field, "primaryKey": None,
+                    "fieldType": field_type},
+        "encodedQuery": None, "emptyOption": None, "choices": None,
+    }
+
+
+def build_filter(name: str, table: str, field: str, kind: str = "multiselect",
+                 field_type: str = "string") -> str:
+    """A dashboard filter pill.
+
+    `kind`: multiselect | singleselect | date.
+
+    Native filter widgets also carry a `cascadeScope` value that points at a
+    sibling record we could not identify over REST, so it is omitted here. Two
+    independent filters on one dashboard behave independently without it; only
+    cascading BETWEEN filters is affected.
+    """
+    if kind not in ("multiselect", "singleselect", "date"):
+        raise ValueError(f"unknown filter kind {kind!r}")
+    target = _filter_target(table, field, field_type)
+    p = {
+        "host": "dashboard",
+        "id": "targets",
+        "filterId": base64.b32encode(f"{table}{field}{time.perf_counter_ns()}".encode())
+                            .decode().lower()[:19],
+        "filterName": name,
+        "filterComponentType": kind,
+        "filterConfigurations": [],
+        "datasource": {} if kind == "date" else target,
+        "targets": [target],
+        "value": [target],
+        "defaultSelectedItems": [],
+        "enableClearFilter": True,
+        "filterElementLayout": "vertical",
+        "filterElementType": "pill",
+        "isShowSelectedValueInPill": True,
+        "maxElements": 500,
+        "noDebounce": "",
+        "sort": "ASC",
+        "propLabel": "Data to filter",
+    }
+    if kind == "date":
+        p["dateFilterView"] = "calendar-reldates"
+        p["enableResetToDefault"] = True
+        p["isShowSelectedValueInPill"] = False
+        p["defaultSelectedDateRange"] = {
+            "range": "SN_DYNAMIC_DATERANGE__NEXT_30_DAYS",
+            "label": "Next 30 days",
+        }
+        p["allowedDateRanges"] = [
+            {"label": "Today", "range": "SN_DYNAMIC_DATERANGE__TODAY"},
+            {"label": "Next 7 days", "range": "SN_DYNAMIC_DATERANGE__NEXT_7_DAYS"},
+            {"label": "Next 30 days", "range": "SN_DYNAMIC_DATERANGE__NEXT_30_DAYS"},
+            {"label": "Next 3 months", "range": "SN_DYNAMIC_DATERANGE__NEXT_3_MONTHS"},
+            {"label": "Last month", "range": "SN_DYNAMIC_DATERANGE__LAST_MONTH"},
+        ]
+        p["targets"] = [{"type": "table",
+                         "table": {"id": table},
+                         "field": {"id": field, "type": "glide_date_time",
+                                   "reference": ""}}]
+        p["value"] = p["targets"]
+    return json.dumps(p)

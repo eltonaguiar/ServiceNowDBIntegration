@@ -84,8 +84,8 @@ def resolve_reports(sn: ServiceNow, table: str, titles: list[str]) -> dict[str, 
     return found
 
 
-def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: dict,
-                 table: str) -> list[dict]:
+def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: dict | None,
+                 table: str, trend_field: str = "u_start") -> list[dict]:
     """One layout element per widget.
 
     The visualization, filter and group-by are taken from the matching entry in
@@ -107,12 +107,13 @@ def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: di
             "name": label,
             "component_id": pa_widgets.VIZ[viz],
             "component_props": pa_widgets.build_props(
-                template,
+                template if template is not None else pa_widgets.load_template(viz),
                 table=table,
                 label=label,
                 filter_query=rd.get("filter", ""),
                 group_by=rd.get("field", ""),
                 viz=viz,
+                trend_field=trend_field,
             ),
             "_filter": rd.get("filter", ""),
         })
@@ -185,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         for t in missing:
             print(f"  x {t}")
         return 1
-    template = pa_widgets.load_template(args.template)
+    template = pa_widgets.load_template(args.template) if args.template else None
     print(f"resolved {len(titles)} widget definition(s) from {args.reports_spec}")
 
     if args.dry_run:
