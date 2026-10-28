@@ -1,0 +1,30 @@
+{
+  "table": "u_toronto_event",
+  "label": "Toronto Event",
+  "scope": "global",
+  "extendable": false,
+  "_comment": "Worked example, validated on a real instance. 21 fields because the source JSON had 27 keys of which 6 were camelCase duplicates of snake_case ones. lat/lng are float+40, NOT decimal+15 -- see README 'The precision trap'.",
+  "fields": [
+    { "element": "u_event_id",          "label": "Event ID",          "type": "string",          "max_length": 64 },
+    { "element": "u_title",             "label": "Title",             "type": "string",          "max_length": 255 },
+    { "element": "u_start",             "label": "Start",             "type": "glide_date_time", "max_length": 40 },
+    { "element": "u_location",          "label": "Location",          "type": "string",          "max_length": 255 },
+    { "element": "u_address",           "label": "Address",           "type": "string",          "max_length": 255 },
+    { "element": "u_lat",               "label": "Latitude",          "type": "float",           "max_length": 40 },
+    { "element": "u_lng",               "label": "Longitude",         "type": "float",           "max_length": 40 },
+    { "element": "u_source",            "label": "Source",            "type": "string",          "max_length": 100 },
+    { "element": "u_host",              "label": "Host",              "type": "string",          "max_length": 255 },
+    { "element": "u_status",            "label": "Status",            "type": "string",          "max_length": 100 },
+    { "element": "u_url",               "label": "URL",               "type": "url",             "max_length": 500 },
+    { "element": "u_price",             "label": "Price",             "type": "string",          "max_length": 100 },
+    { "element": "u_price_amount",      "label": "Price Amount",      "type": "decimal",         "max_length": 15 },
+    { "element": "u_is_free",           "label": "Is Free",           "type": "boolean" },
+    { "element": "u_is_multi_day",      "label": "Is Multi Day",      "type": "boolean" },
+    { "element": "u_description",       "label": "Description",       "type": "string",          "max_length": 4000 },
+    { "element": "u_categories",        "label": "Categories",        "type": "string",          "max_length": 1000 },
+    { "element": "u_tags",              "label": "Tags",              "type": "string",          "max_length": 1000 },
+    { "element": "u_duration_category", "label": "Duration Category", "type": "string",          "max_length": 50 },
+    { "element": "u_is_recurring",      "label": "Is Recurring",      "type": "boolean" },
+    { "element": "u_last_updated",      "label": "Last Updated",      "type": "glide_date_time", "max_length": 40 }
+  ]
+}
