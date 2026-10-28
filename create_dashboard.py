@@ -130,6 +130,18 @@ def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: di
                 field_type=w.get("field_type", "string"),
             )
 
+        elif kind == "geomap":
+            comp = pa_widgets.VIZ["geomap"]
+            props = pa_widgets.build_geopoint(
+                pa_widgets.load_template("geomap"),
+                table=table,
+                label=label,
+                filter_query=w.get("query", ""),
+                group_by=w.get("group_by", "u_location_ref"),
+                follow_filters=w.get("follow_filters", True),
+                basemap=w.get("basemap", pa_widgets.BASEMAP_WORLD),
+            )
+
         elif kind == "chart":
             rd = report_defs[w["report"]]
             viz = pa_widgets.REPORT_TYPE_TO_VIZ.get(rd.get("type", "bar"), "column")
@@ -159,8 +171,7 @@ def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: di
             "component_props": props,
             "_kind": kind,
             "_filter": (report_defs[w["report"]].get("filter", "") if kind == "chart"
-                        else w.get("query", "")),
-        })
+                        else w.get("query", "")),        })
     return layout
 
 

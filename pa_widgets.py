@@ -59,6 +59,7 @@ VIZ = {
     "donut":          "a2b0596cec6b9d49dd1ff9bf76b5084b",  # Donut          [ 22]
     "pie":            "96abe7e38d8790718022c5630a92176c",  # Pie            [ 13]
     "horizontal_bar": "85855283b7e03010097cb81cde11a91d",  # Horizontal bar [  9]
+    "geomap":         "9c8c44bd78fe5918950e0db8e286211d",  # Geomap         [  1]
 }
 
 # `sys_report.type` -> widget visualization. The reports we already created use
@@ -72,6 +73,12 @@ REPORT_TYPE_TO_VIZ = {
     "pie": "pie",
     "line": "line",
 }
+
+# Geomap draws one of the `sys_report_map` basemaps -- GeoJSON geometry
+# records (World, states, provinces). mapSysId is NOT a sys_report_map_source
+# id; that confusion cost real time. The DATA mapping (table/field -> points)
+# lives in sys_report_map_source, built by create_map_source.py.
+BASEMAP_WORLD = "93b8a3a2d7101200bd4a4ebfae61033a"
 
 DEFAULT_TEMPLATE = Path(__file__).with_name("specs") / "pa_widget_template.json"
 TEMPLATE_DIR = Path(__file__).with_name("specs") / "templates"
@@ -245,6 +252,31 @@ def build_widget_row(element: dict, canvas_id: str, dash_id: str) -> dict:
 HEADING = "1f6e0643eca7a637e36bd7833549ec9e"   # Heading  [20 native rows]
 
 
+def build_geopoint(template: dict,
+                   table: str,
+                   label: str,
+                   filter_query: str = "",
+                   group_by: str = "",
+                   follow_filters: bool = True,
+                   basemap: str = BASEMAP_WORLD) -> str:
+    """A Geomap plotting one point per group, e.g. per venue.
+
+    `group_by` must be a field the `sys_report_map_source` chain can resolve to
+    coordinates -- here `u_location_ref`, a reference to cmn_location carrying
+    latitude/longitude.
+    """
+    props = json.loads(build_props(template, table=table, label=label,
+                                   filter_query=filter_query, group_by=group_by,
+                                   viz="geomap", follow_filters=follow_filters))
+    props["mapSysId"] = basemap
+    # This is the string that makes a widget react to the dashboard's filter
+    # pills. Native filter-aware widgets all carry it.
+    props["filterConfigurations"] = "@state.parFilters"
+    props["enableDrilldown"] = True
+    props["legendPosition"] = "bottom"
+    return json.dumps(props)
+
+
 def build_heading(template: dict, label: str, level: str = "2") -> str:
     """A section title. `variant: header-secondary` is what native rows use."""
     p = copy.deepcopy(template)
@@ -284,6 +316,7 @@ def build_list(template: dict, table: str, label: str, query: str = "",
 
 # --------------------------------------------------------------- filters
 FILTER = "226449101138d0dff1abe0e1566c8b2a"   # Filter  [15 native rows]
+
 
 # Dashboard widgets pick up filters through this magic string. Native widgets
 # set exactly this value on every filter-aware component.

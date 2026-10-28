@@ -1,0 +1,7 @@
+{
+ "applied_at": "2026-10-28T05:22:31.268325",
+ "source_tz": "America/Toronto",
+ "rows_updated": 11938,
+ "rows_failed": 0,
+ "backup": "/tmp/sn-db-repo/backups/u_toronto_event_datetimes_20261028_052025.csv"
+}

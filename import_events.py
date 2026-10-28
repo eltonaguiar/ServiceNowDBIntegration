@@ -105,8 +105,13 @@ READ_FIELDS = ["sys_id", "sys_created_on", "sys_updated_on", "u_batch_id"] + lis
 # --------------------------------------------------------------------- helpers
 
 
-def to_sn_datetime(value: str) -> str | None:
-    """'2026-11-02T19:00:00.123Z' -> '2026-11-02 19:00:00'. Empty -> None."""
+def _fmt_sn(value: str) -> str | None:
+    """Format-only normaliser: '2026-11-02T19:00:00.123Z' -> '2026-11-02 19:00:00'.
+
+    Use this for values that are ALREADY UTC -- notably anything read back from
+    the database. Do not feed it a source timestamp; those need the timezone
+    conversion in to_sn_datetime().
+    """
     if not value:
         return None
     text = str(value).strip().replace("T", " ")
@@ -114,6 +119,59 @@ def to_sn_datetime(value: str) -> str | None:
         text = text[:-1]
     # ServiceNow wants second precision, no trailing offset or fraction.
     return text[:19]
+
+
+# The events feed stamps Toronto LOCAL times with a 'Z' (UTC) suffix. Measured:
+# 11,756 of 11,758 timestamps end in 'Z', and Toronto Public Library lists the
+# same events at their local wall-clock time. Taking the 'Z' at face value put
+# every event 4 hours early in summer and 5 in winter, which surfaced as a 10:00
+# event rendering as 06:00 for a Toronto viewer. See docs/FINDINGS.md and
+# fix_source_timezone.py.
+SOURCE_TZ_NAME = "America/Toronto"
+
+
+def _source_zone():
+    from zoneinfo import ZoneInfo
+    return ZoneInfo(SOURCE_TZ_NAME)
+
+
+def to_sn_datetime(value: str) -> str | None:
+    """Source timestamp -> UTC string ServiceNow will store literally.
+
+    The source's 'Z' is not trustworthy, so:
+
+      - '...Z' or no marker  -> treat as SOURCE_TZ (America/Toronto) local time
+      - explicit '+HH:MM'/' -HH:MM' offset -> honour it
+
+    Both are converted to UTC, which is what the Table API stores. This is
+    DST-aware: 10:00 in July becomes 14:00Z, 10:00 in January becomes 15:00Z.
+    """
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+
+    from datetime import datetime, timezone
+
+    # Honour a real numeric offset if the feed ever starts sending one.
+    if len(text) >= 6 and text[-6] in "+-" and text[-3] == ":":
+        try:
+            dt = datetime.fromisoformat(text)
+            return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            pass
+
+    naive = _fmt_sn(text)
+    if not naive:
+        return None
+    try:
+        dt = datetime.strptime(naive, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    return (dt.replace(tzinfo=_source_zone())
+              .astimezone(timezone.utc)
+              .strftime("%Y-%m-%d %H:%M:%S"))
 
 
 def normalise(field: str, value) -> str | None:
@@ -142,7 +200,9 @@ def comparable(field: str, value) -> str:
         return "true" if value else "false"
     text = str(value).strip()
     if field in DATETIME_FIELDS:
-        return to_sn_datetime(text) or ""
+        # Format-only: this runs on BOTH the stored value and the payload, and
+        # the stored value is already UTC. Converting here would double-shift.
+        return _fmt_sn(text) or ""
     if field in ("u_lat", "u_lng", "u_price_amount"):
         try:
             return f"{float(text):.6f}" if text else ""

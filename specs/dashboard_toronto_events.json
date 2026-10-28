@@ -1,9 +1,9 @@
 {
-  "_comment": "Toronto Events dashboard v3. follow_filters=False on widgets with an ABSOLUTE window (Today/Tomorrow/7d/30d and the two feeds) so a dashboard date filter cannot AND with them into an empty set. The 'Events matching the filters' list and all charts DO follow filters.",
+  "_comment": "Toronto Events dashboard v4: adds the Geomap. follow_filters=False on absolute windows (Today/Tomorrow/7d/30d, the two feeds); the map, the matching list and the charts follow filters.",
   "name": "Toronto Events",
   "grid": 48,
   "table": "u_toronto_event",
-  "description": "Live view of Toronto events: what's on today, what's coming, where it is, and how the feed is changing.",
+  "description": "Live view of Toronto events, with a map of where they concentrate.",
   "widgets": [
     {
       "kind": "filter",
@@ -166,7 +166,7 @@
     },
     {
       "kind": "heading",
-      "label": "Where and what",
+      "label": "Where events are happening",
       "level": "2",
       "x": 0,
       "y": 51,
@@ -174,13 +174,15 @@
       "h": 2
     },
     {
-      "kind": "chart",
-      "report": "Toronto Events — By Venue",
-      "label": "Top venues",
+      "kind": "geomap",
+      "label": "Event concentration by venue",
+      "query": "u_location_refISNOTEMPTY",
+      "group_by": "u_location_ref",
+      "follow_filters": true,
       "x": 0,
       "y": 53,
       "w": 28,
-      "h": 18
+      "h": 22
     },
     {
       "kind": "chart",
@@ -189,14 +191,23 @@
       "x": 28,
       "y": 53,
       "w": 20,
-      "h": 18
+      "h": 11
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — By Venue",
+      "label": "Top venues",
+      "x": 28,
+      "y": 64,
+      "w": 20,
+      "h": 11
     },
     {
       "kind": "heading",
       "label": "How the feed is moving",
       "level": "2",
       "x": 0,
-      "y": 71,
+      "y": 77,
       "w": 48,
       "h": 2
     },
@@ -206,7 +217,7 @@
       "label": "Events added to the feed",
       "trend_field": "sys_created_on",
       "x": 0,
-      "y": 73,
+      "y": 79,
       "w": 24,
       "h": 14
     },
@@ -215,7 +226,7 @@
       "report": "Toronto Events — By Source",
       "label": "By source",
       "x": 24,
-      "y": 73,
+      "y": 79,
       "w": 24,
       "h": 14
     }
