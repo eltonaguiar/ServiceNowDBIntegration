@@ -78,6 +78,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="show the plan, create nothing")
     parser.add_argument("--delete", action="store_true",
                         help="remove every report defined in the spec (cleanup)")
+    parser.add_argument("--update", action="store_true",
+                        help="patch existing reports whose filter/type/field differ from the spec")
     args = parser.parse_args(argv)
 
     spec = json.loads(args.spec.read_text(encoding="utf-8"))
@@ -118,12 +120,48 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nremoved {removed} report(s)")
         return 0
 
-    created = skipped = failed = 0
+    created = skipped = updated = failed = 0
     for r in reports:
         title = r["title"]
         if title in have:
-            print(f"  = skip    {title} (already exists)")
-            skipped += 1
+            if not args.update:
+                print(f"  = skip    {title} (already exists)")
+                skipped += 1
+                continue
+
+            # --update: make the instance match the spec. Only the three
+            # attributes that define the report's meaning are compared; a
+            # difference in, say, the description is not worth a write.
+            current = sn.get("sys_report", have[title],
+                             fields=["filter", "type", "field", "aggregate"])
+            desired = {
+                "filter": r.get("filter", ""),
+                "type": r["type"],
+                "field": r.get("field", ""),
+                "aggregate": r.get("aggregate", "COUNT"),
+            }
+            changes = {}
+            for key, want in desired.items():
+                got = current.get(key) or ""
+                if isinstance(got, dict):
+                    got = got.get("value") or ""
+                if str(got) != str(want):
+                    changes[key] = want
+
+            if not changes:
+                print(f"  = same    {title}")
+                skipped += 1
+                continue
+
+            try:
+                sn.update("sys_report", have[title], changes)
+                for key, value in changes.items():
+                    print(f"  ~ updated {title}: {key}")
+                    print(f"              now: {value}")
+                updated += 1
+            except SNError as exc:
+                print(f"  x FAILED  {title}: {exc}")
+                failed += 1
             continue
 
         body = {
@@ -150,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
             failed += 1
 
     print()
-    print(f"created {created} · skipped {skipped} · failed {failed}")
+    print(f"created {created} · updated {updated} · skipped {skipped} · failed {failed}")
 
     # Verify by reading back, rather than trusting the insert responses.
     print("\nverification (re-reading from the instance):")

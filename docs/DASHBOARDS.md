@@ -154,6 +154,38 @@ UI-written  : u_start>javascript:gs.endOfCurrentMinute()^EQ
 same rows   : 2433 in both cases
 ```
 
+### Which means the picker options ARE addressable programmatically
+
+"after Current minute" is not an alternative to `javascript:` -- it *is*
+`javascript:gs.endOfCurrentMinute()`. The condition builder recognises the
+function and renders it back as a friendly dropdown value. There is no separate
+non-JavaScript encoding to aim for.
+
+Every relative function the picker can express works as a raw filter, verified on
+this instance:
+
+| Picker choice | Stored form | rows (`u_start > ...`) |
+|---|---|---|
+| Current minute | `javascript:gs.endOfCurrentMinute()` | 2433 |
+| Now | `javascript:gs.now()` | 2433 |
+| Today (start) | `javascript:gs.beginningOfToday()` | 2502 |
+| Today (end) | `javascript:gs.endOfToday()` | 2433 |
+| This week (start) | `javascript:gs.beginningOfThisWeek()` | 2555 |
+| This week (end) | `javascript:gs.endOfThisWeek()` | 2204 |
+| This month (start) | `javascript:gs.beginningOfThisMonth()` | 3901 |
+| 7 days ahead | `javascript:gs.daysAgoStart(-7)` | 2157 |
+| 7 days ago | `javascript:gs.daysAgoStart(7)` | 2909 |
+| End of next week | `javascript:gs.endOfNextWeek()` | 1919 |
+
+So `create_reports.py` can produce exactly what the picker produces. The spec now
+uses `gs.endOfCurrentMinute()` for "after now" cases and appends the `^EQ`
+terminator, matching the builder's own output byte for byte.
+
+`create_reports.py --update` reconciles existing reports against the spec
+(patching `filter`, `type`, `field`, `aggregate` only). Verified behaviour-
+preserving: after rewriting 10 of 12 filters, every row count was unchanged
+(351 / 2433 / 276 / 878 / 2341 identical before and after).
+
 ### Practical consequence
 
 Editing one of these reports in the UI and saving will rewrite its filter into
