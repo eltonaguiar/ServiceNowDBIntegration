@@ -123,68 +123,138 @@ in the dashboards list ready to fill.
 
 ## 2c. RESOLVED — a populated dashboard IS scriptable. §2 and §2b were wrong.
 
-Section 2 said "a dashboard is a UI Builder artefact, not an insertable row".
-Section 2b corrected half of that. Both are now superseded by this:
+**`create_dashboard.py` builds a working PAR dashboard. This section is the
+verified recipe; an earlier revision of it was wrong and is corrected below.**
 
-**`create_dashboard.py` builds a working PAR dashboard with report widgets.**
+Four records, in this order:
 
-| Record | What it holds | Creatable over REST? |
+| Record | What it holds | Required? |
 |---|---|---|
 | `par_dashboard` | name, grid, active | ✅ |
 | `par_dashboard_tab` | tab name, order | ✅ |
-| `par_dashboard_canvas` | `layout` JSON with per-widget placement | ✅ with `dashboard_tab` set |
+| `par_dashboard_canvas` | `layout` JSON with per-widget placement | ✅, with `dashboard_tab` set at CREATE |
+| `par_dashboard_widget` | **one row per layout element** | ✅ — the renderer reads these |
 
-The `layout` array looks like:
+```mermaid
+graph TD
+    D[par_dashboard] --> T[par_dashboard_tab]
+    D --> C[par_dashboard_canvas<br/>layout JSON = cache]
+    C --> W[par_dashboard_widget<br/>one row per element]
+    W -.->|"shared sys_id<br/>layout[i].sys_id == widget.sys_id"| C
+    W --> V[component:<br/>visualization macroponent]
+    W --> DS[component_props:<br/>dataSources / metrics / groupBy]
+```
+
+### The three defects that made it render nothing
+
+These are worth reading in order, because each one looked like success from the
+API and only a human opening the page revealed it.
+
+**1. `par_dashboard_canvas.layout` is only a cache.** The renderer reads
+`par_dashboard_widget` rows. The two are joined by a *shared sys_id*:
+`layout[i]["sys_id"]` must equal the widget row's `sys_id`. A canvas with 12
+layout elements and 0 widget rows renders as **"Add your first element"**.
+
+**2. There is no `reportSysId` prop.** An earlier revision of this doc claimed
+the `Report/PA Widget` macroponent renders a `sys_report` via `reportSysId`.
+That is **false on this release**. Scanning all 318 `par_dashboard_widget` rows
+on the instance found `reportSysId` in exactly one place: the widgets that had
+just been created. No native widget uses it. Setting it produces, per widget:
+
+> Can't display this information — You are either not authorized or the record is
+> not valid
+
+PAR widgets here are **Platform-Analytics-native**. Data is declared inside
+`component_props`, not referenced:
 
 ```json
-[{"sys_id":"<32 hex>","x":0,"y":0,"w":12,"h":14,
-  "name":"Toronto Events — This Week",
-  "component_id":"7dbc62b27efa88d6d910579a68c7a65d",
-  "component_props":"{\"label\":\"...\",\"reportSysId\":\"<sys_report sys_id>\"}"}]
+{
+  "dataSources": [{
+    "sourceType": "table",
+    "tableOrViewName": "u_toronto_event",
+    "filterQuery": "u_start>javascript:gs.endOfCurrentMinute()^EQ",
+    "id": "<base64>", "label": "...",
+    "preferredVisualizations": ["<viz macroponent id>"],
+    "dataCategories": ["trend","group","simple"],
+    "allowRealTime": true, "isDatabaseView": false
+  }],
+  "metrics": [{
+    "dataSource": "<same base64 id>",
+    "aggregateFunction": "COUNT",
+    "axisId": "primary", "id": "<base64>",
+    "numberFormat": {"customFormat": false},
+    "dateFormat": {"customFormat": false},
+    "stringFormat": {"customFormat": false}
+  }],
+  "groupBy": [{
+    "groupBy": [{"dataSource":"<same id>","groupByField":"u_source",
+                 "isRange": false, "isChoice": true, "isPaBucket": false}],
+    "maxNumberOfGroups": 12, "showOthers": true,
+    "numberOfGroupsBasedOn": "NO_OF_GROUP_BASED_ON_PER_METRIC",
+    "disableRanges": false
+  }]
+}
 ```
 
-### The component that makes it possible
+Observed `sourceType` values across all native widgets: `table` (147),
+`indicator` (102). There is no `report` sourceType.
 
-There is a macroponent called **`Report/PA Widget`**
-(`7dbc62b27efa88d6d910579a68c7a65d`). Its props:
+**3. `component` (the widget row's visualization macroponent) is mandatory.**
+Every one of the 318 native rows sets it; `stored_component` is optional (221
+omit it). Leaving `component` empty is what produces *"the record is not
+valid"* — there is no component to instantiate.
 
-```
-label                string
-reportSysId          reference -> sys_report    <-- the key
-paWidgetSysId        reference -> pa_widgets
-variant              choice
-border               boolean
-refreshInterval ...  (realtime options)
-```
+| Visualization | Macroponent | Native rows |
+|---|---|---|
+| Single score | `d24d53f60350de7a652caf3188a46ed2` | 101 |
+| Vertical bar | `23051643b7e03010097cb81cde11a910` | 35 |
+| Column | `2bd5dc19a7ad083941b7c992a966dd78` | 29 |
+| Line | `18ac962264404bcc0039359d184b15f3` | 26 |
+| Donut | `a2b0596cec6b9d49dd1ff9bf76b5084b` | 22 |
+| Pie | `96abe7e38d8790718022c5630a92176c` | 13 |
+| Horizontal bar | `85855283b7e03010097cb81cde11a91d` | 9 |
 
-So a PAR dashboard widget **can** render a plain `sys_report`. My earlier claim
-that "PAR widgets render indicators, not `sys_report` records" was based on the
-306 existing OOB widgets — all of which happen to be indicator-based — and was
-wrong as a general statement. The report-backed component exists; it just wasn't
-being used by any of the seeded content.
+`pa_widgets.py` holds this table and clones the cosmetic prop defaults from a
+native, working widget (`specs/pa_widget_template.json`), so axis/legend/empty-
+state settings are whatever the platform itself writes rather than guesses.
 
-### Two caveats that cost time
+### Caveats that cost time
 
 1. **`dashboard_tab` must be set when the canvas is CREATED.** A `PATCH` on an
    existing canvas returns `200` and silently does not persist — the tab stays
-   blank and the dashboard renders empty. Delete and recreate instead.
+   blank. Recreate the canvas instead.
 2. **`pa_dashboards` (legacy) still cannot be created** — 403 "security
    constraints" even as admin. Only `par_dashboard` works.
+3. **Rebuild with `--update`, never delete-then-create.** Deleting mints a new
+   `sys_id`; any open tab, bookmark or shared link to the dashboard then shows
+   *"Can't display this dashboard — not found"*. `--update` reuses the
+   `par_dashboard` and its tab, and replaces only canvas + widget rows.
+4. **Rebuilding invalidates widget sys_ids**, so a browser tab open across a
+   rebuild will 404 when a widget is clicked. Refresh the page.
 
 ### Verified structure
 
 ```
-par_dashboard       Toronto Events           4a0f7544c3589310310abf0d050131dc
-par_dashboard_tab   Overview                 c20fb544c3589310310abf0d05013115
-par_dashboard_canvas (tab-linked, 12 widgets) 460fb544c3589310310abf0d0501311e
+par_dashboard         Toronto Events              868ff1c4c3589310310abf0d050131cf
+par_dashboard_tab     Overview                    468f35c4c3589310310abf0d0501312d
+par_dashboard_canvas  (tab-linked, 12 elements)   a38086c8c3589310310abf0d05013197
+par_dashboard_widget  12 rows, component set
 ```
 
-Every widget verified by reading the layout back and resolving its
-`reportSysId` to the intended report.
+`create_dashboard.py` verifies by re-reading, and prints a **pre-flight count**
+for every widget — it runs each widget's own encoded query against the table via
+the Table API, so a widget that would show zero says so before anyone opens the
+page:
 
-**Not verified:** that it *paints* correctly in a browser — that needs a human
-to open Dashboards → Toronto Events. The records match the platform's own
-structure, but rendering is the one thing this API-only workflow cannot confirm.
+```
+Toronto Events — This Week         comp=d24d53f6 group=-          rows=351
+Toronto Events — By Source         comp=2bd5dc19 group=u_source   rows=11940
+Toronto Events — Data Quality: No  comp=d24d53f6 group=-          rows=2
+```
+
+**Still requires a human:** whether it *paints*. The API can prove the records
+are right, the filters return data, and every widget has a component — it cannot
+prove pixels.
 
 ## 3. What was actually built
 
