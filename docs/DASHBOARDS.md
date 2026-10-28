@@ -350,6 +350,51 @@ Not verified, and therefore not shipped:
 Until those are settled the "Top venues" horizontal bar stands in: it answers
 "where are events happening" from the same data, and it renders.
 
+## 2f. Dashboard filters: the `dynamicTimeRange` trap
+
+Adding a date filter broke **every** widget on the dashboard that follows
+filters, not just the filter itself:
+
+> Invalid configuration. Invalid value for dynamicTimeRange field:
+> SN_DYNAMIC_DATERANGE__NEXT_30_DAYS
+
+The token is not invalid. All ten `SN_DYNAMIC_DATERANGE__*` values appear in
+native widgets' `allowedDateRanges`, and a native filter happily defaults to
+`SN_DYNAMIC_DATERANGE__LAST_7_DAYS`.
+
+The real requirement: **a selected date range needs a matching
+`filterConfigurations` entry to bind to.** A native date filter looks like
+
+```json
+"defaultSelectedDateRange": {"range": "SN_DYNAMIC_DATERANGE__LAST_7_DAYS", "label": "Last 7 days"},
+"filterConfigurations": [{"filterId": "1ha0739qjl097777h8o",
+                          "start": "2023-09-06", "end": "...", "apply_to": []}]
+```
+
+Mine had a `defaultSelectedDateRange` and `filterConfigurations: []`, so the
+renderer had no `filterId` to attach the range to and rejected the value. The
+failure then surfaces on every filter-aware widget, which makes it look like a
+chart bug rather than a filter bug -- the four score cards and both feeds all
+reported the same error.
+
+Current behaviour: the date filter ships with **no preselected range**
+(`enableResetToDefault: false`, no `defaultSelectedDateRange`, ten options in
+`allowedDateRanges`). The dashboard therefore opens unconstrained and a human
+picks a range. To preselect one later, `filterConfigurations` must be populated
+too -- a default alone will fail the same way.
+
+### Debugging tip
+
+To find which record carries a bad value, do not trust the widget named in the
+error. Scan every widget's `component_props` **and** the canvas `layout` JSON:
+
+```python
+for w in widgets:
+    if "DYNAMIC" in w["component_props"]: ...
+```
+
+That is what isolated it to one field on one filter.
+
 ## 3. What was actually built
 
 `specs/reports_toronto_events.json` + `create_reports.py` create **12 reports** on

@@ -328,18 +328,30 @@ def build_filter(name: str, table: str, field: str, kind: str = "multiselect",
     }
     if kind == "date":
         p["dateFilterView"] = "calendar-reldates"
-        p["enableResetToDefault"] = True
+        # Do NOT preselect a range.
+        #
+        # `defaultSelectedDateRange: {"range": "SN_DYNAMIC_DATERANGE__NEXT_30_DAYS",
+        # "label": ...}` is rejected by the renderer with:
+        #     Invalid configuration. Invalid value for dynamicTimeRange field:
+        #     SN_DYNAMIC_DATERANGE__NEXT_30_DAYS
+        # even though that exact token appears in every native widget's
+        # `allowedDateRanges`. The error then propagates to EVERY filter-aware
+        # widget on the dashboard, so a bad default breaks all the score cards.
+        # Starting with no selection leaves the dashboard unconstrained until a
+        # human picks a range, which is also the safer default.
+        p["enableResetToDefault"] = False
         p["isShowSelectedValueInPill"] = False
-        p["defaultSelectedDateRange"] = {
-            "range": "SN_DYNAMIC_DATERANGE__NEXT_30_DAYS",
-            "label": "Next 30 days",
-        }
         p["allowedDateRanges"] = [
             {"label": "Today", "range": "SN_DYNAMIC_DATERANGE__TODAY"},
+            {"label": "Yesterday", "range": "SN_DYNAMIC_DATERANGE__YESTERDAY"},
             {"label": "Next 7 days", "range": "SN_DYNAMIC_DATERANGE__NEXT_7_DAYS"},
             {"label": "Next 30 days", "range": "SN_DYNAMIC_DATERANGE__NEXT_30_DAYS"},
             {"label": "Next 3 months", "range": "SN_DYNAMIC_DATERANGE__NEXT_3_MONTHS"},
+            {"label": "Last week", "range": "SN_DYNAMIC_DATERANGE__LAST_WEEK"},
             {"label": "Last month", "range": "SN_DYNAMIC_DATERANGE__LAST_MONTH"},
+            {"label": "Last quarter", "range": "SN_DYNAMIC_DATERANGE__LAST_QUARTER"},
+            {"label": "Last 6 months", "range": "SN_DYNAMIC_DATERANGE__LAST_6_MONTH"},
+            {"label": "Last year", "range": "SN_DYNAMIC_DATERANGE__LAST_YEAR"},
         ]
         p["targets"] = [{"type": "table",
                          "table": {"id": table},
