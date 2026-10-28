@@ -67,6 +67,60 @@ write-oriented experiences. UI Pages are legacy.
 
 ---
 
+## 2b. Correction: the dashboard *shell* IS creatable
+
+I claimed `par_dashboard` was "not realistically creatable over REST". **That was
+too strong.** Tested directly:
+
+| Attempt | Result |
+|---|---|
+| `POST pa_dashboards` (legacy PA dashboard) | ❌ **403 even as admin** — "ACL Exception Insert Failed due to security constraints" |
+| `POST par_dashboard` (new PAR dashboard) | ✅ **succeeds** (bare `{}` was accepted, then deleted) |
+| `POST sys_dashboard` (old core-UI "Dashboard Layout") | ✅ succeeds |
+| `POST sys_dashboard_detail` | n/a — only takes `gauge_id` (→ Gauge), no report reference |
+
+So the shell is scriptable. What is **not** scriptable is a populated dashboard,
+and the reason is specific:
+
+A PAR dashboard's content lives in `par_dashboard_canvas.layout` — a JSON array
+of widget descriptors:
+
+```json
+[{"x":24,"y":52,"w":24,"h":14,
+  "name":"% high priority incidents",
+  "component_id":"2bd5dc19a7ad083941b7c992a966dd78",
+  "component_props":"{\"configVersion\":\"23.0.0-ci-SNAPSHOT\", ... }"}]
+```
+
+Each widget's `component_props` is an 81-key blob whose data binding is a
+**Performance Analytics indicator**, base64-encoded:
+
+```json
+"metrics":[{"dataSource":"aW5kaWNhdG9yNzZmZDU5NjBiZjMzMDEwMGI5NmRhYzgwOGMwNzM5N2MxNjk5NDY5NTUyNzY5",
+            "id":"YVc1a2FXTmh..."}],
+"dataSources":[{"indicatorType":"1","isScriptedIndicator":false, ...}]
+```
+
+(`aW5kaWNhdG9y…` decodes to `indicator76fd5960…`.) There is **no `reportSysId`** in
+any widget — the only "report" key in the whole corpus is a boolean
+`newReporting`. So PAR dashboard widgets render **indicators**, not
+`sys_report` records.
+
+Placing the 12 reports on a dashboard therefore needs either a full PA indicator
+build (a different artifact entirely, with scheduled data collection), or the
+UI's "Add to dashboard", which does the report→widget wrapping on your behalf.
+
+**Which dashboard type is best:** the **new PAR dashboard**. The legacy
+`pa_dashboards` model is both the one that is 403-blocked over REST *and* the one
+ServiceNow is retiring — `analytics_dashboard` carries a `ready_to_migrate`
+field, and there is a `par_dashboard_conversion_backup` table, both evidence of
+an active migration programme. `sys_dashboard` is the oldest core-UI layout and
+only holds gauges; avoid it.
+
+Practical sequence: create the `par_dashboard` shell programmatically, then
+populate it in the UI. The shell carries the name, owner and grid so it appears
+in the dashboards list ready to fill.
+
 ## 3. What was actually built
 
 `specs/reports_toronto_events.json` + `create_reports.py` create **12 reports** on
