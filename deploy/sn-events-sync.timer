@@ -1,0 +1,19 @@
+[Unit]
+Description=Nightly Toronto events sync at 03:00 America/Toronto
+
+[Timer]
+# 03:00 in the named zone -- the timezone is part of the calendar expression,
+# which is the only way systemd supports it. There is no Timezone= key.
+# This handles EST/EDT automatically; do NOT convert to a UTC cron.
+OnCalendar=*-*-* 03:00:00 America/Toronto
+
+# If the host was off at 03:00, run once at the next boot instead of skipping a day.
+Persistent=true
+
+# Spread the load off the exact minute.
+RandomizedDelaySec=300
+
+Unit=sn-events-sync.service
+
+[Install]
+WantedBy=timers.target

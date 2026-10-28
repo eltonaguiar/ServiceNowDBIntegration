@@ -299,7 +299,7 @@ class ServiceNow:
         rows = self.query(
             "sys_dictionary",
             encoded_query=f"name={table}^NelementISNOTEMPTY^ORDERBYelement",
-            fields=["element", "column_label", "internal_type", "max_length"],
+            fields=["sys_id", "element", "column_label", "internal_type", "max_length"],
             limit=500,
         )
         out = []
@@ -309,6 +309,7 @@ class ServiceNow:
                 itype = itype.get("value")
             out.append(
                 {
+                    "sys_id": row.get("sys_id"),
                     "element": row.get("element"),
                     "label": row.get("column_label"),
                     "type": itype,

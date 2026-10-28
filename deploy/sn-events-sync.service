@@ -1,0 +1,38 @@
+[Unit]
+Description=Sync Toronto events into ServiceNow
+Documentation=https://github.com/eltonaguiar/ServiceNowDBIntegration/blob/main/docs/SCHEDULING.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=svc-snsync
+Group=svc-snsync
+WorkingDirectory=/opt/sn-db-repo
+
+# Credentials live here, not in this file. Mode 0600.
+EnvironmentFile=/etc/sn-sync.env
+
+# Import config (non-secret) can live in its own file too.
+Environment=SN_SOURCE=https://findtorontoevents.ca/events.json
+Environment=SN_WORKERS=10
+Environment=SN_REPORT_DIR=/var/log/sn-sync
+
+ExecStart=/usr/bin/python3 -u import_events.py \
+    --source ${SN_SOURCE} \
+    --workers ${SN_WORKERS} \
+    --report ${SN_REPORT_DIR}/report-%Y%m%d.json
+
+# A failed sync exits 1 (rows errored). Treat it as a failure so systemd records it.
+TimeoutStartSec=30min
+
+# Harden: the job only needs outbound HTTPS.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/sn-sync
+RestrictAddressFamilies=AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

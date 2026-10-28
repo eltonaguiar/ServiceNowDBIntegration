@@ -25,6 +25,15 @@ number and error message in this README was observed, not guessed.
 11. [Security](#security)
 12. [What was validated](#what-was-validated)
 
+### Deeper documentation
+
+| Document | Read it when you need to… |
+|---|---|
+| [`docs/SCHEDULING.md`](docs/SCHEDULING.md) | run it nightly at 03:00, or change a database URL / credential |
+| [`docs/HOW_IT_TALKS_TO_SERVICENOW.md`](docs/HOW_IT_TALKS_TO_SERVICENOW.md) | understand the auth, or copy a curl / PowerShell example |
+| [`docs/REBUILD.md`](docs/REBUILD.md) | rebuild everything after an instance expires |
+| [`docs/FINDINGS.md`](docs/FINDINGS.md) | see what was tested, what broke, and how it was debugged |
+
 ---
 
 ## 1. What this repo gives you
@@ -719,11 +728,25 @@ Example: `name=u_my_table^NelementISNOTEMPTY^ORDERBYelement`
 ├── .env.example              # template; real .env is gitignored
 ├── .gitignore
 ├── sn_api.py                 # the client everything else uses
-├── create_table.py           # spec → table + columns
-├── verify_table.py           # round-trip proof
+├── create_table.py           # spec → table + columns (idempotent)
+├── verify_table.py           # round-trip proof: write, read back, compare
 ├── create_acl.py             # attempts ACLs; explains the platform limit
-└── specs/
-    └── u_toronto_event.json  # complete worked example
+├── import_events.py          # the sync: upsert + batch stamp + sweep + dedupe
+├── deploy/
+│   ├── sn-events-sync.service   # systemd unit (03:00 America/Toronto)
+│   ├── sn-events-sync.timer
+│   └── run-sync.sh              # cron wrapper
+├── specs/
+│   ├── u_toronto_event.json  # target table, 22 fields
+│   └── u_ev_stage.json       # staging table (pull variant)
+├── tests/
+│   ├── test_sync.py          # 27 behavioural assertions
+│   └── test_loads.py         # repeated-load / duplicate-detection harness
+└── docs/
+    ├── SCHEDULING.md         # triggers, timezone, credential rotation
+    ├── HOW_IT_TALKS_TO_SERVICENOW.md  # auth + curl/PowerShell examples
+    ├── REBUILD.md            # disaster recovery in ~15 minutes
+    └── FINDINGS.md           # what broke, how it was found, test evidence
 ```
 
 ---

@@ -61,6 +61,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Create a ServiceNow table from a JSON spec.")
     parser.add_argument("spec", type=Path, help="path to the table spec JSON")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
+    parser.add_argument(
+        "--fix-drift",
+        action="store_true",
+        help="widen max_length (and change type) where the spec differs from the instance",
+    )
     args = parser.parse_args(argv)
 
     spec = load_spec(args.spec)
@@ -110,8 +115,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # 3. reconcile
     print("\n[3/3] reconcile")
-    actual = {c["element"]: c for c in sn.columns(table) if c["element"].startswith("u_")}
+    actual_rows = sn.columns(table)
+    for row in actual_rows:
+        row["sys_id"] = row.get("sys_id")
+    actual = {c["element"]: c for c in actual_rows if c["element"].startswith("u_")}
     expected = {f["element"]: f for f in spec["fields"]}
+    fixed: list[str] = []
 
     for element in sorted(expected):
         if element not in actual:
@@ -120,12 +129,33 @@ def main(argv: list[str] | None = None) -> int:
             got = actual[element]
             want = expected[element]
             drift = []
+            widening: dict[str, str] = {}
             if str(got["type"]) != want["type"]:
                 drift.append(f"type {got['type']} != {want['type']}")
+                widening["internal_type"] = want["type"]
             if want.get("max_length") and str(got["max_length"]) != str(want["max_length"]):
-                drift.append(f"max_length {got['max_length']} != {want['max_length']}")
+                try:
+                    grow = int(want["max_length"]) > int(got["max_length"] or 0)
+                except (TypeError, ValueError):
+                    grow = False
+                label = "narrower than spec" if grow else "DIFFERENT from spec"
+                if not grow:
+                    label = "narrower in spec -- refusing to narrow"
+                drift.append(f"max_length {got['max_length']} -> {want['max_length']} ({label})")
+                if grow:
+                    widening["max_length"] = str(want["max_length"])
             if drift:
                 print(f"  ! DRIFT    {element}: " + "; ".join(drift))
+                if args.fix_drift and widening:
+                    try:
+                        sn.update("sys_dictionary", got["sys_id"], widening)
+                        print(f"             fixed  {widening}")
+                        fixed.append(element)
+                    except SNError as exc:
+                        print(f"             fix FAILED: {exc}")
+                        failures.append((element, str(exc)))
+                elif widening:
+                    print("             re-run with --fix-drift to apply")
             else:
                 print(f"  . ok       {element}")
 
@@ -139,6 +169,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(f"RESULT: {len(expected)}/{len(expected)} fields present")
+    if fixed:
+        print(f"        {len(fixed)} column(s) widened: {', '.join(fixed)}")
     print(f"Next: python verify_table.py {table}")
     return 0
 
