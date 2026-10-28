@@ -118,6 +118,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("spec", type=Path)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--delete", action="store_true")
+    parser.add_argument("--update", action="store_true",
+                        help="refresh widgets/layout on the existing dashboard, keeping its sys_id")
     args = parser.parse_args(argv)
 
     spec = json.loads(args.spec.read_text(encoding="utf-8"))
@@ -157,24 +159,49 @@ def main(argv: list[str] | None = None) -> int:
                   f"{el['name'][:38]:<40} report={props['reportSysId']}")
         return 0
 
-    if existing_dashboard(sn, name):
-        print(f"\nA dashboard named {name!r} already exists. Use --delete first to rebuild.")
+    existing_id = existing_dashboard(sn, name)
+    if existing_id and not args.update:
+        print(f"\nA dashboard named {name!r} already exists ({existing_id}).")
+        print("  --update  refresh its widgets in place (keeps the sys_id / URL)")
+        print("  --delete  remove it entirely")
         return 1
 
-    print("\n[1/3] par_dashboard")
-    dash = sn.insert("par_dashboard", {
-        "name": name,
-        "grid": str(spec.get("grid", 48)),
-        "active": "true",
-        "description": spec.get("description", ""),
-    })
-    dash_id = dash["sys_id"]
-    print(f"      created {dash_id}")
+    print("\n[1/4] par_dashboard")
+    if existing_id:
+        # Updating: keep the dashboard record so its sys_id -- and therefore any
+        # bookmark or link to it -- stays valid.
+        dash_id = existing_id
+        print(f"      reusing existing {dash_id} (URL preserved)")
+    else:
+        dash = sn.insert("par_dashboard", {
+            "name": name,
+            "grid": str(spec.get("grid", 48)),
+            "active": "true",
+            "description": spec.get("description", ""),
+        })
+        dash_id = dash["sys_id"]
+        print(f"      created {dash_id}")
 
-    print("[2/3] par_dashboard_tab")
-    tab = sn.insert("par_dashboard_tab", {"dashboard": dash_id, "name": "Overview", "order": "0"})
-    tab_id = tab["sys_id"]
-    print(f"      created {tab_id}")
+    print("[2/4] par_dashboard_tab")
+    tabs = sn.query("par_dashboard_tab", encoded_query=f"dashboard={dash_id}",
+                    fields=["sys_id"], limit=10)
+    if tabs:
+        tab_id = tabs[0]["sys_id"]
+        print(f"      reusing existing tab {tab_id}")
+    else:
+        tab = sn.insert("par_dashboard_tab", {"dashboard": dash_id, "name": "Overview", "order": "0"})
+        tab_id = tab["sys_id"]
+        print(f"      created {tab_id}")
+
+    # Clear any previous canvas + widget rows so the rebuild is not additive.
+    if existing_id:
+        for old_canvas in sn.query("par_dashboard_canvas", encoded_query=f"dashboard={dash_id}",
+                                   fields=["sys_id"], limit=50):
+            for wid in sn.query("par_dashboard_widget", encoded_query=f"canvas={old_canvas['sys_id']}",
+                                fields=["sys_id"], limit=500):
+                sn.delete("par_dashboard_widget", wid["sys_id"])
+            sn.delete("par_dashboard_canvas", old_canvas["sys_id"])
+        print("      cleared previous canvas + widget rows")
 
     print("[3/4] par_dashboard_canvas")
     layout = build_layout(widgets, report_ids)
