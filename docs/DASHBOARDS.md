@@ -123,6 +123,61 @@ canvas.
 
 ---
 
+## 4a. What the UI actually writes into a filter (measured)
+
+I claimed earlier that authoring a relative date through the condition builder
+produces a native `RELATIVE` condition with no `javascript:` in it. **That was
+wrong.** Here is what the UI produced when a date condition was set to
+*"start is after current minute"* on `u_toronto_event` and saved:
+
+```
+u_start>javascript:gs.endOfCurrentMinute()^u_sourceISNOTEMPTY^EQ
+```
+
+Three things to take from that:
+
+1. **The condition builder emits `javascript:` functions itself.** So the 5
+   scripted reports that use `javascript:gs.*()` are not a quirk of writing
+   filters through the API — they use the same vocabulary the UI does. The
+   portability concern I raised is therefore much smaller than I made it sound.
+2. **The UI's own date vocabulary** includes `gs.now()`, `gs.endOfCurrentMinute()`,
+   `gs.beginningOfThisWeek()`, `gs.endOfThisWeek()`, `gs.daysAgoStart()`. "After
+   current minute" specifically maps to `gs.endOfCurrentMinute()`.
+3. **The UI appends `^EQ`.** That is a query terminator the builder adds to mark
+   the end of the condition list. It is benign in a stored filter, but it is the
+   reason a UI-authored filter and an API-authored one can differ by a suffix
+   while behaving identically:
+
+```
+API-written : u_start>javascript:gs.now()
+UI-written  : u_start>javascript:gs.endOfCurrentMinute()^EQ
+same rows   : 2433 in both cases
+```
+
+### Practical consequence
+
+Editing one of these reports in the UI and saving will rewrite its filter into
+the UI's form. That is harmless — but if you want a report to stay byte-identical
+to what is in `specs/reports_toronto_events.json`, do not edit it in the UI, or
+expect `create_reports.py` to see it as a different record (it matches on title,
+so it will simply skip it).
+
+### The attempt that did NOT work
+
+Before checking the UI, I tried to hand-derive the native operator form:
+
+```
+u_startRELATIVEGT@week@ago@0    -> 2 rows      (expected ~351)
+u_startRELATIVEGT@week@later@0  -> 2 rows
+u_startRELATIVELT@week@later@0  -> 2 rows
+u_startRELATIVEGT@dayofweek@ago@0 -> 2433 rows (coincidence, means something else)
+```
+
+None of them map cleanly onto "this calendar week". I left the verified
+`javascript:` filters in place rather than swap a known-good count of 351 for an
+unexplained 2. Lesson: when a syntax guess and a measurement disagree, believe
+the measurement and keep what works.
+
 ## 5. Assembling the dashboard (one time, ~2 minutes)
 
 1. **All → Dashboards → New dashboard**
