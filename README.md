@@ -32,6 +32,7 @@ number and error message in this README was observed, not guessed.
 | [`docs/SCHEDULING.md`](docs/SCHEDULING.md) | run it nightly at 03:00, or change a database URL / credential |
 | [`docs/HOW_IT_TALKS_TO_SERVICENOW.md`](docs/HOW_IT_TALKS_TO_SERVICENOW.md) | understand the auth, or copy a curl / PowerShell example |
 | [`docs/REBUILD.md`](docs/REBUILD.md) | rebuild everything after an instance expires |
+| [`FRESH_INSTANCE_STEPS.md`](FRESH_INSTANCE_STEPS.md) | stand this up against a brand-new instance |
 | [`docs/FINDINGS.md`](docs/FINDINGS.md) | see what was tested, what broke, and how it was debugged |
 
 ---
@@ -731,6 +732,8 @@ Example: `name=u_my_table^NelementISNOTEMPTY^ORDERBYelement`
 ├── create_table.py           # spec → table + columns (idempotent)
 ├── verify_table.py           # round-trip proof: write, read back, compare
 ├── create_acl.py             # attempts ACLs; explains the platform limit
+├── fresh_instance.sh         # one-shot bootstrap: prompts or pre-fill, then builds
+├── FRESH_INSTANCE_STEPS.md   # copy-paste guide (script path and manual path)
 ├── import_events.py          # the sync: upsert + batch stamp + sweep + dedupe
 ├── deploy/
 │   ├── sn-events-sync.service   # systemd unit (03:00 America/Toronto)
