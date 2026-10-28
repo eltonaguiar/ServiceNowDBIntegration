@@ -256,6 +256,100 @@ Toronto Events — Data Quality: No  comp=d24d53f6 group=-          rows=2
 are right, the filters return data, and every widget has a component — it cannot
 prove pixels.
 
+## 2d. The dashboard in use: feeds, filters, breakdowns
+
+`specs/dashboard_toronto_events.json` describes 18 widgets. A `kind` field picks
+the component, so one script builds sections rather than just charts:
+
+| kind | Component | What it is |
+|---|---|---|
+| `chart` | Single score / Column / Donut / Horizontal bar / Line | count or group-by, defined in `specs/reports_toronto_events.json` |
+| `heading` | Heading | section title |
+| `list` | List - Simple | live record feed — the "happening today" panels |
+| `filter` | Filter | dashboard filter pill (multiselect or date) |
+
+Layout on the 48-column grid:
+
+```
+y=0    Category ▾ | When ▾ | Source ▾                        (3 filters)
+y=4    Toronto events at a glance
+y=6    Today | Tomorrow | Next 7 days | Next 30 days          (4 scores)
+y=15   Happening today          | Happening in the next 3 days
+y=17   Today's events (list)    | Coming up (list)
+y=35   Where and what
+y=37   Top venues (bar)         | By category (donut)
+y=55   How the feed is moving
+y=57   Events added (line)      | By source (column)
+```
+
+### Per-visualization templates are mandatory
+
+There is no single `component_props` skeleton. Each visualization needs its own
+`extensionType`, `dataCategory` and (sometimes) `trendBy`:
+
+| kind | extensionType | dataCategory | trendBy |
+|---|---|---|---|
+| column | `bar` | `group` | populated |
+| horizontal_bar | — | `group` | null |
+| donut | — | `group` | null |
+
+Reusing one skeleton across chart types produced, on a Column chart:
+
+> Invalid configuration — A 'Trend By' must be selected for the visualization to
+> render.
+
+A chart with no `dataCategory` is treated as a trend chart, and trend charts are
+refused without `trendBy`. `specs/templates/chart_<kind>.json` therefore holds one
+captured template per visualization, each taken from a native widget that renders.
+
+When cloning a template that already carries a `trendBy`, its
+`trendByFields[].metric` points at the *source* widget's metric — it must be
+remapped onto the new widget's own metric id and its own date field, or the chart
+draws the wrong series. `pa_widgets.build_props()` does both.
+
+### Two derived columns the dashboard depends on
+
+`backfill_geo_category.py` adds and maintains them (idempotent, `--dry-run`):
+
+| Column | Type | Why |
+|---|---|---|
+| `u_primary_category` | string 50 | `u_categories` is a CSV: 221 distinct combinations for 11,940 events. The first token gives 11 clean buckets (Arts 4,475 / General 3,042 / Sports 1,266 …), which is what makes a category filter usable. `u_categories` is untouched for search. |
+| `u_location_ref` | reference → `cmn_location` | 440 `cmn_location` records created, one per venue with coordinates; 9,599 events referenced. Verified by dot-walking `u_location_ref.latitude`. |
+
+## 2e. The geo map: where it stands (honest status)
+
+The Geomap is **not** on the dashboard yet. Three things are known and three are
+not, and guessing produced three wrong claims earlier in this project, so the
+build stops at the verified boundary.
+
+Verified:
+1. `cmn_location` records exist for all 440 venues, with latitude/longitude.
+2. `u_location_ref` is a real reference; `u_toronto_event.u_location_ref.latitude`
+   resolves over REST.
+3. Map sources are a **parent/child hierarchy**. A business rule named
+   *"If parent is empty set empty values"* nulls `type`, `type_mapping` and
+   `join_by_column` unless `parent` is set — which is why writing those fields on
+   a standalone record silently does nothing (HTTP 200, `sys_mod_count`
+   increments, values stay empty). The native chain is:
+
+   ```
+   root  parent=''      type=''                 aggregate_field=location
+   L1    parent=root    type=Level 1  mapping   aggregate_field=location.country
+   L2    parent=L1      type=Level 2  mapping   aggregate_field=location.state
+   L3    parent=L2      type=Level 3  use_lat_lon  aggregate_field=location.city
+   ```
+
+Not verified, and therefore not shipped:
+1. Which `aggregate_field` yields one point per **venue** rather than one per
+   city. The native L3 uses `location.city`, a name string, not coordinates.
+2. `Geomap.mapSysId` on the native widget (`93b8a3a2…`) does **not** exist in
+   `sys_report_map_source`, so the prop points at an entity not yet identified.
+3. Whether the resulting widget renders at all. Nothing in the REST API can
+   confirm pixels.
+
+Until those are settled the "Top venues" horizontal bar stands in: it answers
+"where are events happening" from the same data, and it renders.
+
 ## 3. What was actually built
 
 `specs/reports_toronto_events.json` + `create_reports.py` create **12 reports** on

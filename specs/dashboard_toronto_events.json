@@ -1,24 +1,191 @@
 {
-  "_comment": "PAR dashboard spec. Each widget is bound to an existing sys_report via the Report/PA Widget macroponent's reportSysId prop. Grid is 48 columns wide; w=12 is a quarter of the width.",
+  "_comment": "Toronto Events dashboard v2. Sections: filters, at-a-glance scores, two live feeds (today / next 3 days), where+what breakdowns, and momentum. `kind` selects the component: chart (uses the matching entry in reports_toronto_events.json), heading, list, filter. Coordinates are on a 48-column grid.",
   "name": "Toronto Events",
   "grid": 48,
   "table": "u_toronto_event",
-  "description": "Read-only overview of the Toronto events feed: three KPIs across the top, then mix and quality below.",
+  "description": "Live view of Toronto events: what's on today, what's coming, where it is, and how the feed is changing.",
   "widgets": [
-    { "report": "Toronto Events — This Week",              "x": 0,  "y": 0,  "w": 12, "h": 14 },
-    { "report": "Toronto Events — Next 7 Days",             "x": 12, "y": 0,  "w": 12, "h": 14 },
-    { "report": "Toronto Events — Upcoming",                "x": 24, "y": 0,  "w": 12, "h": 14 },
-    { "report": "Toronto Events — Multi-Day",               "x": 36, "y": 0,  "w": 12, "h": 14 },
-
-    { "report": "Toronto Events — By Source",               "x": 0,  "y": 14, "w": 24, "h": 16 },
-    { "report": "Toronto Events — Upcoming By Source",      "x": 24, "y": 14, "w": 24, "h": 16 },
-
-    { "report": "Toronto Events — Free vs Paid",            "x": 0,  "y": 30, "w": 12, "h": 16 },
-    { "report": "Toronto Events — By Status",               "x": 12, "y": 30, "w": 12, "h": 16 },
-    { "report": "Toronto Events — By Duration Category",    "x": 24, "y": 30, "w": 12, "h": 16 },
-    { "report": "Toronto Events — Added This Week",         "x": 36, "y": 30, "w": 12, "h": 16 },
-
-    { "report": "Toronto Events — Data Quality: No Coordinates", "x": 0,  "y": 46, "w": 24, "h": 10 },
-    { "report": "Toronto Events — Data Quality: No Start Date",  "x": 24, "y": 46, "w": 24, "h": 10 }
+    {
+      "kind": "filter",
+      "label": "Category",
+      "field": "u_primary_category",
+      "filter_kind": "multiselect",
+      "field_type": "string",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 4
+    },
+    {
+      "kind": "filter",
+      "label": "When",
+      "field": "u_start",
+      "filter_kind": "date",
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 4
+    },
+    {
+      "kind": "filter",
+      "label": "Source",
+      "field": "u_source",
+      "filter_kind": "multiselect",
+      "field_type": "string",
+      "x": 32,
+      "y": 0,
+      "w": 16,
+      "h": 4
+    },
+    {
+      "kind": "heading",
+      "label": "Toronto events at a glance",
+      "level": "1",
+      "x": 0,
+      "y": 4,
+      "w": 48,
+      "h": 2
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — Today",
+      "label": "Today",
+      "x": 0,
+      "y": 6,
+      "w": 12,
+      "h": 9
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — Tomorrow",
+      "label": "Tomorrow",
+      "x": 12,
+      "y": 6,
+      "w": 12,
+      "h": 9
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — Next 7 Days",
+      "label": "Next 7 days",
+      "x": 24,
+      "y": 6,
+      "w": 12,
+      "h": 9
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — Next 30 Days",
+      "label": "Next 30 days",
+      "x": 36,
+      "y": 6,
+      "w": 12,
+      "h": 9
+    },
+    {
+      "kind": "heading",
+      "label": "Happening today",
+      "level": "2",
+      "x": 0,
+      "y": 15,
+      "w": 24,
+      "h": 2
+    },
+    {
+      "kind": "heading",
+      "label": "Happening in the next 3 days",
+      "level": "2",
+      "x": 24,
+      "y": 15,
+      "w": 24,
+      "h": 2
+    },
+    {
+      "kind": "list",
+      "label": "Today's events",
+      "query": "u_start>=javascript:gs.beginningOfToday()^u_start<=javascript:gs.endOfToday()^ORDERBYu_start",
+      "columns": [
+        "u_start",
+        "u_title",
+        "u_location",
+        "u_primary_category",
+        "u_is_free"
+      ],
+      "x": 0,
+      "y": 17,
+      "w": 24,
+      "h": 18
+    },
+    {
+      "kind": "list",
+      "label": "Coming up",
+      "query": "u_start>javascript:gs.endOfToday()^u_start<=javascript:gs.daysAgoStart(-3)^ORDERBYu_start",
+      "columns": [
+        "u_start",
+        "u_title",
+        "u_location",
+        "u_primary_category",
+        "u_is_free"
+      ],
+      "x": 24,
+      "y": 17,
+      "w": 24,
+      "h": 18
+    },
+    {
+      "kind": "heading",
+      "label": "Where and what",
+      "level": "2",
+      "x": 0,
+      "y": 35,
+      "w": 48,
+      "h": 2
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — By Venue",
+      "label": "Top venues",
+      "x": 0,
+      "y": 37,
+      "w": 28,
+      "h": 18
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — By Category",
+      "label": "By category",
+      "x": 28,
+      "y": 37,
+      "w": 20,
+      "h": 18
+    },
+    {
+      "kind": "heading",
+      "label": "How the feed is moving",
+      "level": "2",
+      "x": 0,
+      "y": 55,
+      "w": 48,
+      "h": 2
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — Newly Added",
+      "label": "Events added to the feed",
+      "x": 0,
+      "y": 57,
+      "w": 24,
+      "h": 14,
+      "trend_field": "sys_created_on"
+    },
+    {
+      "kind": "chart",
+      "report": "Toronto Events — By Source",
+      "label": "By source",
+      "x": 24,
+      "y": 57,
+      "w": 24,
+      "h": 14
+    }
   ]
 }

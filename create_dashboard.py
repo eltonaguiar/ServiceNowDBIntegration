@@ -88,16 +88,64 @@ def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: di
                  table: str, trend_field: str = "u_start") -> list[dict]:
     """One layout element per widget.
 
-    The visualization, filter and group-by are taken from the matching entry in
-    specs/reports_toronto_events.json, so the reports and the dashboard cannot
-    drift apart -- they are two views of one definition.
+    `kind` selects the component:
+
+        chart   (default) count / group-by from the matching reports-spec entry
+        heading section title
+        list    live record feed (the 'happening today' style panels)
+        filter  dashboard filter pill
+
+    For charts the visualization, filter and group-by come from the matching
+    entry in specs/reports_toronto_events.json, so the reports and the dashboard
+    cannot drift apart -- they are two views of one definition.
     """
     layout = []
     for w in widgets:
-        title = w["report"]
-        rd = report_defs[title]
-        viz = pa_widgets.REPORT_TYPE_TO_VIZ.get(rd.get("type", "bar"), "column")
-        label = w.get("label", title)
+        kind = w.get("kind", "chart")
+        label = w.get("label") or w.get("report") or ""
+
+        if kind == "heading":
+            comp = pa_widgets.HEADING
+            props = pa_widgets.build_heading(
+                pa_widgets.load_template("heading"), label, w.get("level", "2"))
+
+        elif kind == "list":
+            comp = pa_widgets.LIST_SIMPLE
+            props = pa_widgets.build_list(
+                pa_widgets.load_template("list"),
+                table=w.get("table", table),
+                label=label,
+                query=w.get("query", ""),
+                columns=w.get("columns"),
+            )
+
+        elif kind == "filter":
+            comp = pa_widgets.FILTER
+            props = pa_widgets.build_filter(
+                label,
+                table=w.get("table", table),
+                field=w["field"],
+                kind=w.get("filter_kind", "multiselect"),
+                field_type=w.get("field_type", "string"),
+            )
+
+        elif kind == "chart":
+            rd = report_defs[w["report"]]
+            viz = pa_widgets.REPORT_TYPE_TO_VIZ.get(rd.get("type", "bar"), "column")
+            comp = pa_widgets.VIZ[viz]
+            props = pa_widgets.build_props(
+                template if template is not None else pa_widgets.load_template(viz),
+                table=table,
+                label=label,
+                filter_query=rd.get("filter", ""),
+                group_by=rd.get("field", ""),
+                viz=viz,
+                trend_field=w.get("trend_field", trend_field),
+            )
+
+        else:
+            raise ValueError(f"unknown widget kind {kind!r}")
+
         layout.append({
             "sys_id": uuid.uuid4().hex,
             "x": w.get("x", 0),
@@ -105,17 +153,11 @@ def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: di
             "w": w.get("w", 12),
             "h": w.get("h", 14),
             "name": label,
-            "component_id": pa_widgets.VIZ[viz],
-            "component_props": pa_widgets.build_props(
-                template if template is not None else pa_widgets.load_template(viz),
-                table=table,
-                label=label,
-                filter_query=rd.get("filter", ""),
-                group_by=rd.get("field", ""),
-                viz=viz,
-                trend_field=trend_field,
-            ),
-            "_filter": rd.get("filter", ""),
+            "component_id": comp,
+            "component_props": props,
+            "_kind": kind,
+            "_filter": (report_defs[w["report"]].get("filter", "") if kind == "chart"
+                        else w.get("query", "")),
         })
     return layout
 
@@ -171,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
         delete_dashboard(sn, name)
         return 0
 
-    titles = [w["report"] for w in widgets]
+    titles = [w["report"] for w in widgets if w.get("kind", "chart") == "chart"]
     # Widget data comes from the report DEFINITIONS (type/field/filter), not from
     # the sys_report records. The definitions are the single source of truth, so
     # the dashboard and the reports cannot drift apart.
@@ -289,24 +331,36 @@ def main(argv: list[str] | None = None) -> int:
         ok = ok and linked and len(arr) == len(layout) and wid == len(layout)
 
         by_id = {r["sys_id"]: r for r in rows}
-        print("\n  pre-flight: does each widget's own filter return any rows?")
+        print("\n  pre-flight: does each widget's own query return any rows?")
         for el in arr:
             row = by_id.get(el.get("sys_id"))
             comp = (row or {}).get("component")
             comp_val = comp.get("value") if isinstance(comp, dict) else comp
             props = json.loads(el["component_props"])
-            ds = props["dataSources"][0]
-            grp = props["groupBy"][0]["groupBy"][0]["groupByField"] if props.get("groupBy") else "-"
             if not comp_val:
                 print(f"    NO COMPONENT -- will not render: {el['name'][:40]}")
                 ok = False
                 continue
+
+            # Headings carry no data; filters are controls, not queries.
+            if comp_val in (pa_widgets.HEADING, pa_widgets.FILTER):
+                kind = "heading" if comp_val == pa_widgets.HEADING else "filter"
+                print(f"    {el['name'][:40]:<42} comp={comp_val[:8]} ({kind})")
+                continue
+
+            if comp_val == pa_widgets.LIST_SIMPLE:
+                tbl, q, label = props.get("table"), props.get("query", ""), "list"
+            else:
+                ds = props["dataSources"][0]
+                tbl, q = ds["tableOrViewName"], ds["filterQuery"]
+                label = (props["groupBy"][0]["groupBy"][0]["groupByField"]
+                         if props.get("groupBy") else "-")
             try:
-                n = sn.count(ds["tableOrViewName"], encoded_query=ds["filterQuery"])
+                n = sn.count(tbl, encoded_query=q)
             except SNError as exc:
                 n = f"ERR {exc}"
                 ok = False
-            print(f"    {el['name'][:40]:<42} comp={comp_val[:8]} group={grp:<22} rows={n}")
+            print(f"    {el['name'][:40]:<42} comp={comp_val[:8]} group={str(label):<22} rows={n}")
 
     print()
     if not ok:

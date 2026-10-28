@@ -93,9 +93,9 @@ def load_template(kind: str | None = None, path: Path | str | None = None) -> di
     if path:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     if kind:
-        cand = TEMPLATE_DIR / f"chart_{kind}.json"
-        if cand.exists():
-            return json.loads(cand.read_text(encoding="utf-8"))
+        for cand in (TEMPLATE_DIR / f"chart_{kind}.json", TEMPLATE_DIR / f"{kind}.json"):
+            if cand.exists():
+                return json.loads(cand.read_text(encoding="utf-8"))
     return json.loads(DEFAULT_TEMPLATE.read_text(encoding="utf-8"))
 
 

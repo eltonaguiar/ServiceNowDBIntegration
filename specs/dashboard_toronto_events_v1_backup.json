@@ -1,0 +1,24 @@
+{
+  "_comment": "PAR dashboard spec. Each widget is bound to an existing sys_report via the Report/PA Widget macroponent's reportSysId prop. Grid is 48 columns wide; w=12 is a quarter of the width.",
+  "name": "Toronto Events",
+  "grid": 48,
+  "table": "u_toronto_event",
+  "description": "Read-only overview of the Toronto events feed: three KPIs across the top, then mix and quality below.",
+  "widgets": [
+    { "report": "Toronto Events — This Week",              "x": 0,  "y": 0,  "w": 12, "h": 14 },
+    { "report": "Toronto Events — Next 7 Days",             "x": 12, "y": 0,  "w": 12, "h": 14 },
+    { "report": "Toronto Events — Upcoming",                "x": 24, "y": 0,  "w": 12, "h": 14 },
+    { "report": "Toronto Events — Multi-Day",               "x": 36, "y": 0,  "w": 12, "h": 14 },
+
+    { "report": "Toronto Events — By Source",               "x": 0,  "y": 14, "w": 24, "h": 16 },
+    { "report": "Toronto Events — Upcoming By Source",      "x": 24, "y": 14, "w": 24, "h": 16 },
+
+    { "report": "Toronto Events — Free vs Paid",            "x": 0,  "y": 30, "w": 12, "h": 16 },
+    { "report": "Toronto Events — By Status",               "x": 12, "y": 30, "w": 12, "h": 16 },
+    { "report": "Toronto Events — By Duration Category",    "x": 24, "y": 30, "w": 12, "h": 16 },
+    { "report": "Toronto Events — Added This Week",         "x": 36, "y": 30, "w": 12, "h": 16 },
+
+    { "report": "Toronto Events — Data Quality: No Coordinates", "x": 0,  "y": 46, "w": 24, "h": 10 },
+    { "report": "Toronto Events — Data Quality: No Start Date",  "x": 24, "y": 46, "w": 24, "h": 10 }
+  ]
+}
