@@ -34,6 +34,7 @@ number and error message in this README was observed, not guessed.
 | [`docs/REBUILD.md`](docs/REBUILD.md) | rebuild everything after an instance expires |
 | [`FRESH_INSTANCE_STEPS.md`](FRESH_INSTANCE_STEPS.md) | stand this up against a brand-new instance |
 | [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) | build read-only views: reports vs dashboards vs UI Builder |
+| [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) | what a non-admin can actually do — tested, not inferred |
 | [`docs/FINDINGS.md`](docs/FINDINGS.md) | see what was tested, what broke, and how it was debugged |
 
 ---
