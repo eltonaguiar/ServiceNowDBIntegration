@@ -101,6 +101,9 @@ def delete_dashboard(sn: ServiceNow, name: str) -> int:
     removed = 0
     for canvas in sn.query("par_dashboard_canvas", encoded_query=f"dashboard={dash_id}",
                            fields=["sys_id"], limit=50):
+        for wid in sn.query("par_dashboard_widget", encoded_query=f"canvas={canvas['sys_id']}",
+                            fields=["sys_id"], limit=500):
+            sn.delete("par_dashboard_widget", wid["sys_id"]); removed += 1
         sn.delete("par_dashboard_canvas", canvas["sys_id"]); removed += 1
     for tab in sn.query("par_dashboard_tab", encoded_query=f"dashboard={dash_id}",
                         fields=["sys_id"], limit=50):
@@ -173,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     tab_id = tab["sys_id"]
     print(f"      created {tab_id}")
 
-    print("[3/3] par_dashboard_canvas")
+    print("[3/4] par_dashboard_canvas")
     layout = build_layout(widgets, report_ids)
     # dashboard_tab MUST be supplied here; a later PATCH silently does not persist.
     canvas = sn.insert("par_dashboard_canvas", {
@@ -181,7 +184,35 @@ def main(argv: list[str] | None = None) -> int:
         "dashboard_tab": tab_id,
         "layout": json.dumps(layout),
     })
-    print(f"      created {canvas['sys_id']} with {len(layout)} widget(s)")
+    print(f"      created {canvas['sys_id']} with {len(layout)} element(s)")
+
+    # The canvas layout is only a cached representation. The renderer reads
+    # par_dashboard_widget rows, and the two are joined by a shared sys_id:
+    # layout[i]["sys_id"] MUST equal the widget row's sys_id.
+    print("[4/4] par_dashboard_widget rows")
+    made = 0
+    for element in layout:
+        props = json.loads(element["component_props"])
+        try:
+            sn.insert("par_dashboard_widget", {
+                "sys_id": element["sys_id"],
+                "canvas": canvas["sys_id"],
+                "name": element["name"],
+                "x": str(element["x"]),
+                "y": str(element["y"]),
+                "w": str(element["w"]),
+                "h": str(element["h"]),
+                "component_props": element["component_props"],
+                "required_translations": json.dumps([{
+                    "code": f"PAR_DASHBOARD.{dash_id}.{element['sys_id']}",
+                    "message": props.get("label", element["name"]),
+                    "comment": "",
+                }]),
+            })
+            made += 1
+        except SNError as exc:
+            print(f"      x widget failed ({element['name'][:30]}): {exc}")
+    print(f"      created {made}/{len(layout)} widget row(s)")
 
     print("\n=== verification (re-reading from the instance) ===")
     back = sn.query("par_dashboard_canvas", encoded_query=f"dashboard={dash_id}",
@@ -193,8 +224,10 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             arr = []
         linked = bool(c.get("dashboard_tab"))
-        print(f"  canvas {c['sys_id']}: tab={'yes' if linked else 'NO'} widgets={len(arr)}")
-        ok = ok and linked and len(arr) == len(layout)
+        wid = sn.count("par_dashboard_widget", encoded_query=f"canvas={c['sys_id']}")
+        print(f"  canvas {c['sys_id']}: tab={'yes' if linked else 'NO'} "
+              f"layout_elements={len(arr)} widget_rows={wid}")
+        ok = ok and linked and len(arr) == len(layout) and wid == len(layout)
         for el in arr:
             props = json.loads(el["component_props"])
             print(f"    {el['name'][:44]:<46} reportSysId={props.get('reportSysId')}")
