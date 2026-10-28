@@ -348,7 +348,7 @@
         {
           "kind": "chart",
           "report": "Toronto Events — By Sync Batch",
-          "label": "Events per sync batch",
+          "label": "Events per sync batch (latest write per row)",
           "follow_filters": false,
           "x": 0,
           "y": 13,
@@ -367,11 +367,11 @@
         {
           "kind": "richtext",
           "label": "Integration details",
-          "html": "<p><b>Source &amp; target</b></p><ul><li>Source feed: <code>https://findtorontoevents.ca/events.json</code> (11,758 records)</li><li>Target: <code>u_toronto_event</code> — 26 columns, 2 of them derived</li><li>Upsert key: <code>u_event_id</code> — re-runs update, never duplicate</li><li>Transport: HTTPS + Basic auth against <code>/api/now/table/u_toronto_event</code></li></ul><p><b>Schedule</b></p><ul><li>systemd timer <code>sn-events-sync.timer</code>, <code>OnCalendar=*-*-* 03:00:00 America/Toronto</code>, <code>Persistent=true</code></li><li>Cron alternative: <code>deploy/run-sync.sh</code> (also runs the derive step)</li><li>Credentials live in <code>/etc/sn-sync.env</code> (0600) — never in the repo</li></ul><p><b>Derived after every sync</b></p><ul><li><code>u_primary_category</code> — first token of the <code>u_categories</code> CSV</li><li><code>u_location_ref</code> → <code>cmn_location</code> — what gives the map its coordinates</li><li>If this step is skipped, new rows vanish from the category chart and the map</li></ul><p><b>Timezone</b></p><ul><li>The feed stamps Toronto <i>local</i> times with a <code>Z</code> suffix. The import treats <code>Z</code> as America/Toronto and converts to true UTC, DST-aware.</li></ul>",
+          "html": "<p><b>Direction: inbound only, one way</b> &mdash; <code>findtorontoevents.ca/events.json</code> &rarr; <code>u_toronto_event</code>. Nothing is ever written back to the feed. Not bi-directional.</p><p><b>Frequency: daily 03:00 America/Toronto</b> &mdash; designed, <b style=\"color:#b34700\">not yet installed</b>. No systemd timer, no cron entry and no Scheduled Import exist on the host, so every run to date has been manual.</p><p><b>Mechanism</b></p><ul><li>External Python script on Linux &rarr; HTTPS + Basic auth &rarr; <b>Table API</b></li><li>Upsert key <code>u_event_id</code>; only genuinely changed fields are PATCHed</li><li><b>Not</b> an Import Set, <b>not</b> JDBC, and the MID Server is <b>not</b> in this path</li></ul><p><b>Derived after every sync</b></p><ul><li><code>u_primary_category</code> &mdash; first token of the <code>u_categories</code> CSV</li><li><code>u_location_ref</code> &rarr; <code>cmn_location</code> &mdash; supplies map coordinates</li><li>Skip this and new rows vanish from the category chart and the map</li></ul><p><b>Timezone</b>: the feed stamps Toronto <i>local</i> times with a <code>Z</code> suffix. The import treats <code>Z</code> as America/Toronto and converts to true UTC, DST-aware.</p><p><b>Not the platform default pattern</b>: ServiceNow's native path is Data Source &rarr; Import Set &rarr; Transform Map with <b>coalesce</b> for idempotency, scheduled inside ServiceNow. This instance has the machinery (17 data sources, 14 transform maps, a JDBC-capable MID) but has never run an import set. JDBC would only apply if the events lived in a database. Full comparison: <code>docs/INTEGRATION_ARCHITECTURE.md</code>.</p>",
           "x": 0,
           "y": 31,
           "w": 48,
-          "h": 18
+          "h": 22
         },
         {
           "kind": "heading",
