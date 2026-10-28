@@ -357,7 +357,7 @@
         },
         {
           "kind": "heading",
-          "label": "Integration details",
+          "label": "Integration at a glance",
           "level": "2",
           "x": 0,
           "y": 29,
@@ -366,19 +366,96 @@
         },
         {
           "kind": "richtext",
-          "label": "Integration details",
-          "html": "<p><b>Direction: inbound only, one way</b> &mdash; <code>findtorontoevents.ca/events.json</code> &rarr; <code>u_toronto_event</code>. Nothing is ever written back to the feed. Not bi-directional.</p><p><b>Frequency: daily 03:00 America/Toronto</b> &mdash; designed, <b style=\"color:#b34700\">not yet installed</b>. No systemd timer, no cron entry and no Scheduled Import exist on the host, so every run to date has been manual.</p><p><b>Mechanism</b></p><ul><li>External Python script on Linux &rarr; HTTPS + Basic auth &rarr; <b>Table API</b></li><li>Upsert key <code>u_event_id</code>; only genuinely changed fields are PATCHed</li><li><b>Not</b> an Import Set, <b>not</b> JDBC, and the MID Server is <b>not</b> in this path</li></ul><p><b>Derived after every sync</b></p><ul><li><code>u_primary_category</code> &mdash; first token of the <code>u_categories</code> CSV</li><li><code>u_location_ref</code> &rarr; <code>cmn_location</code> &mdash; supplies map coordinates</li><li>Skip this and new rows vanish from the category chart and the map</li></ul><p><b>Timezone</b>: the feed stamps Toronto <i>local</i> times with a <code>Z</code> suffix. The import treats <code>Z</code> as America/Toronto and converts to true UTC, DST-aware.</p><p><b>Not the platform default pattern</b>: ServiceNow's native path is Data Source &rarr; Import Set &rarr; Transform Map with <b>coalesce</b> for idempotency, scheduled inside ServiceNow. This instance has the machinery (17 data sources, 14 transform maps, a JDBC-capable MID) but has never run an import set. JDBC would only apply if the events lived in a database. Full comparison: <code>docs/INTEGRATION_ARCHITECTURE.md</code>.</p>",
+          "label": "Integration at a glance",
+          "html": "<p><b>Direction</b> &nbsp;inbound only, one way &mdash; feed &rarr; ServiceNow. Not bi-directional.</p><p><b>Frequency</b> &nbsp;designed daily 03:00 America/Toronto; <b style='color:#b34700'>not installed</b> &mdash; no timer, no cron entry, no Scheduled Import. Every run to date was manual.</p><p><b>Mechanism</b> &nbsp;external Python &rarr; HTTPS + Basic &rarr; Table API, upsert on <code>u_event_id</code>. Not an Import Set, not JDBC; the MID Server is not involved.</p><p><b>Derived each run</b> &nbsp;<code>u_primary_category</code> and <code>u_location_ref</code> &mdash; skip this and new rows drop off the chart and the map.</p><p><b>Timezone</b> &nbsp;the feed stamps Toronto local time as <code>Z</code>; the import converts to true UTC, DST-aware.</p><p style='color:#666'>Flow diagram, idempotency mechanics, native-pattern comparison and failure modes are on the <b>Architecture &amp; Data Flow</b> tab.</p>",
           "x": 0,
           "y": 31,
           "w": 48,
-          "h": 22
+          "h": 18
+        }
+      ]
+    },
+    {
+      "name": "Architecture & Data Flow",
+      "widgets": [
+        {
+          "kind": "heading",
+          "label": "Data flow",
+          "level": "1",
+          "x": 0,
+          "y": 0,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "richtext",
+          "label": "Data flow diagram",
+          "html": "<p><b>End to end &mdash; inbound only, one direction.</b> Nothing is ever written back to the feed.</p><div style=\"border:1px solid #c8c8c8;border-radius:6px;background:#fafafa;padding:7px 10px;margin:0\"><b>events.json</b> &mdash; public HTTPS feed (11,758 records)</div><div style=\"text-align:center;color:#777;font-size:11px;margin:3px 0\">&#9660; HTTPS GET, no authentication</div><div style=\"border:1px solid #c8c8c8;border-radius:6px;background:#eef4ff;padding:7px 10px;margin:0\"><b>import_events.py</b> &mdash; external Python on Linux, stdlib only</div><div style=\"text-align:center;color:#777;font-size:11px;margin:3px 0\">&#9660;</div><table style=\"width:100%;border-collapse:collapse;font-size:12px\"><tr style=\"background:#f0f0f0\"><th align=\"left\" style=\"padding:4px\">step</th><th align=\"left\" style=\"padding:4px\">what it does</th><th align=\"left\" style=\"padding:4px\">why it matters</th></tr><tr><td style=\"padding:4px\"><b>1 preflight</b></td><td style=\"padding:4px\">checks every value fits its column</td><td style=\"padding:4px\">a truncated value re-writes that row forever</td></tr><tr><td style=\"padding:4px\"><b>2 normalise</b></td><td style=\"padding:4px\">types, booleans, numeric rounding, timezone</td><td style=\"padding:4px\">the feed stamps Toronto local time as <code>Z</code>; converted to true UTC, DST-aware</td></tr><tr><td style=\"padding:4px\"><b>3 load existing</b></td><td style=\"padding:4px\">builds <code>u_event_id &rarr; sys_id</code></td><td style=\"padding:4px\">turns the load into an upsert rather than an append</td></tr><tr><td style=\"padding:4px\"><b>4 upsert</b></td><td style=\"padding:4px\">PATCHes only fields that genuinely differ</td><td style=\"padding:4px\">re-running costs nothing and does not churn <code>sys_updated_on</code></td></tr><tr><td style=\"padding:4px\"><b>5 sweep</b></td><td style=\"padding:4px\">deletes rows absent from the feed (opt-out)</td><td style=\"padding:4px\">cancelled events disappear instead of lingering</td></tr><tr><td style=\"padding:4px\"><b>6 derive</b></td><td style=\"padding:4px\"><code>u_primary_category</code>, <code>u_location_ref</code></td><td style=\"padding:4px\">without it, new rows vanish from the category chart and the map</td></tr></table><div style=\"text-align:center;color:#777;font-size:11px;margin:3px 0\">&#9660; HTTPS + Basic auth &mdash; /api/now/table/u_toronto_event</div><div style=\"border:1px solid #c8c8c8;border-radius:6px;background:#eef4ff;padding:7px 10px;margin:0\"><b>ServiceNow</b> &mdash; u_toronto_event (11,942 rows)</div><div style=\"text-align:center;color:#777;font-size:11px;margin:3px 0\">&#9660;</div><div style=\"border:1px solid #c8c8c8;border-radius:6px;background:#fafafa;padding:7px 10px;margin:0\"><b>Dashboard</b> &mdash; Overview &nbsp;|&nbsp; Integration &amp; Health &nbsp;|&nbsp; Architecture &amp; Data Flow</div><p style=\"margin-top:8px;color:#666;font-size:12px\">The MID Server is <b>not</b> in this path. No Import Set, no Transform Map, no JDBC. ServiceNow only ever sees REST calls.</p>",
+          "x": 0,
+          "y": 2,
+          "w": 48,
+          "h": 30
+        },
+        {
+          "kind": "heading",
+          "label": "How idempotency is guaranteed",
+          "level": "2",
+          "x": 0,
+          "y": 32,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "richtext",
+          "label": "Idempotency",
+          "html": "<p><b>Idempotency, defined:</b> running the sync twice changes nothing the second time. Six mechanisms enforce that, and each one exists because of a defect that was actually observed.</p><table style=\"width:100%;border-collapse:collapse;font-size:12px\"><tr style=\"background:#f0f0f0\"><th align=\"left\" style=\"padding:4px\">mechanism</th><th align=\"left\" style=\"padding:4px\">how</th><th align=\"left\" style=\"padding:4px\">the bug it prevents</th></tr><tr><td style=\"padding:4px\"><b>Natural key</b></td><td style=\"padding:4px\">match on <code>u_event_id</code></td><td style=\"padding:4px\">duplicate rows on every run</td></tr><tr><td style=\"padding:4px\"><b>Compare before write</b></td><td style=\"padding:4px\"><code>values_differ()</code> normalises <i>both</i> sides before comparing</td><td style=\"padding:4px\">a PATCH on an unchanged row still bumps <code>sys_updated_on</code></td></tr><tr><td style=\"padding:4px\"><b>Numeric tolerance</b></td><td style=\"padding:4px\">compare and write at the column precision (lat/lng 6 dp, price 2 dp)</td><td style=\"padding:4px\">float last-digit noise rewrote 15 of 11,940 rows every run</td></tr><tr><td style=\"padding:4px\"><b>Width preflight</b></td><td style=\"padding:4px\">abort before writing when a value exceeds the column</td><td style=\"padding:4px\">a 429-char title truncated at 255 re-wrote that row every run, forever</td></tr><tr><td style=\"padding:4px\"><b>Duplicate collapse</b></td><td style=\"padding:4px\"><code>canonicalise_source()</code> keeps the newest <code>u_last_updated</code> per id</td><td style=\"padding:4px\">5 duplicated ids alternated winners each run, a permanent 2-cycle</td></tr><tr><td style=\"padding:4px\"><b>Format-only DB compare</b></td><td style=\"padding:4px\">timezone conversion applies to source values only, never to stored values</td><td style=\"padding:4px\">re-syncing after the timezone fix would shift every row another 4&ndash;5 hours</td></tr></table><p><b>Proof, not assertion:</b> two consecutive full syncs produce <code>0 inserted, 0 updated, 11,940 unchanged</code>. The one-time timezone migration (<code>fix_source_timezone.py</code>) writes a marker file so it cannot run twice by accident.</p><p><b>Deliberately not idempotent:</b> the sweep deletes rows missing from the feed. If the feed is truncated upstream, the sweep mirrors that deletion &mdash; use <code>--no-sweep</code> until the feed is trusted.</p>",
+          "x": 0,
+          "y": 34,
+          "w": 48,
+          "h": 24
+        },
+        {
+          "kind": "heading",
+          "label": "This pattern vs the native ones",
+          "level": "2",
+          "x": 0,
+          "y": 58,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "richtext",
+          "label": "Pattern comparison",
+          "html": "<table style=\"width:100%;border-collapse:collapse;font-size:12px\"><tr style=\"background:#f0f0f0\"><th align=\"left\" style=\"padding:4px\"></th><th align=\"left\" style=\"padding:4px\">Scripted Table API (ours)</th><th align=\"left\" style=\"padding:4px\">Import Set</th><th align=\"left\" style=\"padding:4px\">JDBC Data Source</th></tr><tr><td style=\"padding:4px\"><b>source</b></td><td style=\"padding:4px\">JSON over HTTPS</td><td style=\"padding:4px\">file / JSON / CSV / XML</td><td style=\"padding:4px\">a database</td></tr><tr><td style=\"padding:4px\"><b>needs MID</b></td><td style=\"padding:4px\">no</td><td style=\"padding:4px\">only for on-prem paths</td><td style=\"padding:4px\"><b>yes</b>, JDBC probe</td></tr><tr><td style=\"padding:4px\"><b>idempotency</b></td><td style=\"padding:4px\">our <code>u_event_id</code> upsert</td><td style=\"padding:4px\"><b>coalesce</b> fields</td><td style=\"padding:4px\">coalesce fields</td></tr><tr><td style=\"padding:4px\"><b>run history</b></td><td style=\"padding:4px\">per-run JSON report</td><td style=\"padding:4px\"><b>sys_import_set_run</b></td><td style=\"padding:4px\">sys_import_set_run</td></tr><tr><td style=\"padding:4px\"><b>schedule lives</b></td><td style=\"padding:4px\">Linux systemd / cron</td><td style=\"padding:4px\"><b>inside ServiceNow</b></td><td style=\"padding:4px\">inside ServiceNow</td></tr><tr><td style=\"padding:4px\"><b>testable offline</b></td><td style=\"padding:4px\"><b>yes</b></td><td style=\"padding:4px\">no</td><td style=\"padding:4px\">no</td></tr><tr><td style=\"padding:4px\"><b>bad data</b></td><td style=\"padding:4px\">aborts before writing</td><td style=\"padding:4px\">row lands, transform error recorded</td><td style=\"padding:4px\">same as Import Set</td></tr></table><p><b>The native machinery exists here and has never been used:</b> 17 data sources (File 8, OIDC 5, LDAP 2, JDBC 2), 14 transform maps, a JDBC-capable MID (<code>gx10-mid</code>, Up) &mdash; and <b>0</b> import sets, <b>0</b> import-set runs, <b>0</b> scheduled imports.</p><p><b>Why scripted:</b> the feed needed work the declarative path does poorly &mdash; reinterpreting a bogus <code>Z</code>, width preflight, numeric comparison at storage precision, duplicate collapse, and offline unit tests. <b>The trade-off is real:</b> we re-implemented coalesce and have no import-set history. Move to a File/JSON data source if per-run audit becomes a requirement.</p><p><b>Tracking a scripted table (scripting does not disable update sets)</b></p><p>Capture depends on <code>sys_update_name</code> and scope, not on how a record was created, so REST-created records are captured like any other. Measured here: <b>960</b> <code>sys_update_xml</code> rows, <b>4,066</b> <code>sys_update_version</code> (30 of them for our <code>sys_dictionary</code> entries), <b>60,795</b> <code>sys_audit</code> rows. What scripting costs: capture lands in <b>Default</b>, mixed with everything else (a clean set cannot be opened over REST &mdash; select it in the UI first), and there is no <b>application scope</b>, so Studio source-control linkage does not apply (<code>sys_app</code> = 0, <code>sys_repo_config</code> = 0).</p><table style=\"width:100%;border-collapse:collapse;font-size:12px\"><tr style=\"background:#f0f0f0\"><th align=\"left\" style=\"padding:4px\">want</th><th align=\"left\" style=\"padding:4px\">use</th><th align=\"left\" style=\"padding:4px\">status here</th></tr><tr><td style=\"padding:4px\">history of intent</td><td style=\"padding:4px\">git + specs + apply scripts</td><td style=\"padding:4px\">in use</td></tr><tr><td style=\"padding:4px\">detect hand-edits</td><td style=\"padding:4px\"><code>--dry-run</code> of each create script in CI</td><td style=\"padding:4px\"><b>not set up</b></td></tr><tr><td style=\"padding:4px\">history of actual config</td><td style=\"padding:4px\">dump <code>sys_update_xml</code> to git</td><td style=\"padding:4px\">exists, not exported</td></tr><tr><td style=\"padding:4px\">who changed a field</td><td style=\"padding:4px\"><code>sys_update_version</code> / <code>sys_audit</code></td><td style=\"padding:4px\">already populated</td></tr><tr><td style=\"padding:4px\">native git linkage</td><td style=\"padding:4px\">scoped app + <code>sys_repo_config</code></td><td style=\"padding:4px\">no scoped app</td></tr><tr><td style=\"padding:4px\">metadata as source</td><td style=\"padding:4px\"><code>now-sdk</code> (Fluent)</td><td style=\"padding:4px\">not adopted</td></tr></table><p><b>Biggest gap:</b> nothing detects a hand-edit in the UI before the next scripted rebuild overwrites it. A CI dry-run gate closes that. Detail: <code>docs/CONFIG_TRACKING.md</code>.</p>",
+          "x": 0,
+          "y": 60,
+          "w": 48,
+          "h": 34
+        },
+        {
+          "kind": "heading",
+          "label": "Failure modes and what they look like",
+          "level": "2",
+          "x": 0,
+          "y": 82,
+          "w": 48,
+          "h": 2
+        },
+        {
+          "kind": "richtext",
+          "label": "Failure modes",
+          "html": "<table style=\"width:100%;border-collapse:collapse;font-size:12px\"><tr style=\"background:#f0f0f0\"><th align=\"left\" style=\"padding:4px\">if this happens</th><th align=\"left\" style=\"padding:4px\">you see</th><th align=\"left\" style=\"padding:4px\">do</th></tr><tr><td style=\"padding:4px\">feed unreachable</td><td style=\"padding:4px\">run aborts, nothing written</td><td style=\"padding:4px\">check the URL; no cleanup needed</td></tr><tr><td style=\"padding:4px\">derive step skipped</td><td style=\"padding:4px\"><b>Missing category &gt; 0</b> on the health tab</td><td style=\"padding:4px\">run <code>backfill_geo_category.py</code></td></tr><tr><td style=\"padding:4px\">new rows missing from the map</td><td style=\"padding:4px\">Unmapped count grows</td><td style=\"padding:4px\">same backfill, then check <code>run-sync.sh</code> still calls it</td></tr><tr><td style=\"padding:4px\">schedule never installed</td><td style=\"padding:4px\">Added last 7 days = 0, no new batch bar</td><td style=\"padding:4px\">install the systemd timer</td></tr><tr><td style=\"padding:4px\">feed truncated upstream</td><td style=\"padding:4px\">row count drops sharply</td><td style=\"padding:4px\">re-run with <code>--no-sweep</code></td></tr></table><p><b>Watch one number: Missing category must be 0.</b> It is the only metric that detects a skipped derive pass, and a non-zero value means records are silently absent from the category chart and the map.</p>",
+          "x": 0,
+          "y": 84,
+          "w": 48,
+          "h": 18
         },
         {
           "kind": "heading",
           "label": "Dashboard design",
           "level": "2",
           "x": 0,
-          "y": 49,
+          "y": 102,
           "w": 48,
           "h": 2
         },
@@ -387,17 +464,16 @@
           "label": "Dashboard design summary",
           "html": "<p><b>Structure</b></p><ul><li><b>Overview</b> — the working view: at-a-glance counts, two feeds, the map, breakdowns</li><li><b>Integration &amp; Health</b> — this tab: sync metrics, design notes, runbook</li><li>Every widget is generated from <code>specs/dashboard_toronto_events.json</code></li></ul><p><b>Two rules the layout depends on</b></p><ul><li><b>Absolute windows ignore filters</b> (<code>followFilters: false</code>): Today / Tomorrow / 7 / 30 days keep their own meaning. Filter-driven widgets use <code>true</code>, so the Category / When / Source pills only affect what they should.</li><li><b>The canvas layout is a cache.</b> The renderer reads <code>par_dashboard_widget</code> rows, joined to the layout by a shared <code>sys_id</code>. A canvas with layout entries and no matching widget rows renders empty.</li></ul><p><b>Known limits</b></p><ul><li>~2,300 events cannot be mapped: their feed rows carry no coordinates</li><li>Rebuild with <code>--update</code>; delete-then-create mints a new <code>sys_id</code> and breaks every saved link</li></ul>",
           "x": 0,
-          "y": 51,
+          "y": 104,
           "w": 48,
-          "h": 16,
-          "level": "2"
+          "h": 16
         },
         {
           "kind": "heading",
           "label": "Backup and rebuild",
-          "level": 2,
+          "level": "2",
           "x": 0,
-          "y": 67,
+          "y": 120,
           "w": 48,
           "h": 2
         },
@@ -406,10 +482,9 @@
           "label": "Backup and rebuild",
           "html": "<p><b>What backs this up</b></p><p>Everything here is generated from a spec by an idempotent script, and all of it lives in <b><code>github.com/eltonaguiar/ServiceNowDBIntegration</code></b> (branch <code>main</code>).</p><p><b>Rebuild order</b></p><ol><li><code>create_table.py</code> &mdash; table + columns <span style=\"color:#666\">(specs/u_toronto_event.json)</span></li><li><code>create_reports.py</code> &mdash; the reports <span style=\"color:#666\">(specs/reports_toronto_events.json)</span></li><li><code>create_dashboard.py</code> &mdash; both tabs <span style=\"color:#666\">(specs/dashboard_toronto_events.json)</span></li><li><code>create_map_source.py</code> &mdash; the Geomap mapping chain</li><li><code>backfill_geo_category.py</code> &mdash; derived category + venue references</li><li><code>import_events.py</code> &mdash; pull the feed</li></ol><p><code>fresh_instance.sh</code> runs that sequence end to end. <code>specs/templates/*.json</code> are load-bearing: they hold the captured native <code>component_props</code> per visualization, and losing them breaks chart rendering.</p><p><b>Update sets</b> do capture most of this automatically &mdash; the <i>Default</i> set already holds our schema, reports and PAR dashboard records. What they do <b>not</b> capture: <code>sys_report_map_source</code>, <code>cmn_location</code> rows, and the event data.</p><p><b>GitHub source linkage</b> (<code>sys_repo_config</code>) is for <i>scoped</i> applications; these records are global scope, so it does not apply here.</p><p>Full detail: <code>docs/BACKUP.md</code> in that repo.</p>",
           "x": 0,
-          "y": 69,
+          "y": 122,
           "w": 48,
-          "h": 16,
-          "level": "2"
+          "h": 18
         }
       ]
     }
