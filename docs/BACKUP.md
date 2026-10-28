@@ -1,5 +1,9 @@
 # Backup and recovery: what actually captures this work
 
+> **The repo in question:** https://github.com/eltonaguiar/ServiceNowDBIntegration
+> (branch `main`). Everything below refers to it. If you are reading this from a
+> copy under `/tmp`, clone it somewhere durable — `/tmp` does not survive a reboot.
+
 The question: *the data can always be re-pulled from the source feed, but what
 about the integration itself — the table, the field definitions, the reports and
 the dashboard? Could an update set have captured those, and could this be backed
