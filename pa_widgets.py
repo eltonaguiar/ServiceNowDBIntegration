@@ -123,12 +123,18 @@ def build_props(template: dict,
                 filter_query: str = "",
                 group_by: str = "",
                 viz: str = "column",
-                trend_field: str = "") -> str:
+                trend_field: str = "",
+                follow_filters: bool = True) -> str:
     """Return the JSON string for par_dashboard_widget.component_props.
 
     filter_query is a ServiceNow encoded query. Native widgets terminate theirs
     with `^EQ` (the condition builder appends it), so we do the same for
     consistency with anything the UI later re-saves.
+
+    follow_filters=False is important for widgets that represent an ABSOLUTE
+    window ("today", "next 7 days"). A dashboard date filter is ANDed with the
+    widget's own condition, so "today" plus a filter for a different day gives
+    zero rows -- see docs/DASHBOARDS.md 2g.
     """
     if viz not in VIZ:
         raise ValueError(f"unknown visualization {viz!r}; pick one of {sorted(VIZ)}")
@@ -202,6 +208,7 @@ def build_props(template: dict,
 
     props["headerTitle"] = label
     props["yAxisTitle"] = label if group_by else ""
+    props["followFilters"] = bool(follow_filters)
     # A short random-ish id; native rows have values like "h1dnwom".
     props["componentId"] = base64.b32encode(
         f"{table}{label}{time.perf_counter_ns()}".encode()).decode().lower()[:8]
@@ -251,7 +258,7 @@ LIST_SIMPLE = "2b1c080881e05dc63b917044290b233f"   # List - Simple  [18 native r
 
 
 def build_list(template: dict, table: str, label: str, query: str = "",
-               columns: list[str] | None = None) -> str:
+               columns: list[str] | None = None, follow_filters: bool = True) -> str:
     """A live record list -- this is the "feed" of upcoming events.
 
     `columns` are element names on `table`; the native widget stores them as a
@@ -262,6 +269,7 @@ def build_list(template: dict, table: str, label: str, query: str = "",
     p["table"] = table
     p["listTitle"] = label
     p["query"] = (query or "").strip()
+    p["followFilters"] = bool(follow_filters)
     if columns:
         p["columns"] = ",".join(columns)
     p["maxColumns"] = max(p.get("maxColumns", 7), len(columns or []))

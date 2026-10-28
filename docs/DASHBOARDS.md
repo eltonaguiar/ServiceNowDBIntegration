@@ -395,7 +395,56 @@ for w in widgets:
 
 That is what isolated it to one field on one filter.
 
-## 3. What was actually built
+## 2g. Dashboard filters are ANDed — so absolute windows must opt out
+
+Setting the date filter to a single day produced numbers that looked broken:
+
+| card | showed | true count |
+|---|---|---|
+| Today | **0** | 69 |
+| Tomorrow | **66** | 66 |
+| Next 7 days | **66** | 276 |
+| Next 30 days | **66** | 1,243 |
+
+Nothing was misconfigured. **A dashboard filter is ANDed with each widget's own
+condition**, so every card collapsed to "the one selected day" — 66 events on
+2026-10-28. The list breadcrumb showed the conflict outright:
+
+```
+All > Start between 2026-10-28 00:00:00 and 2026-10-28 23:59:59
+    > Start >= 2026-10-27 00:00:00 > Start <= 2026-10-27 23:59:59
+```
+
+Two date constraints, from two different sources, intersecting.
+
+"Today" showed 0 because of a **timezone offset**, not a query bug.
+`glide.sys.default.tz` is unset and the admin user's `time_zone` is empty, so the
+server's `gs.beginningOfToday()` resolves to **2026-10-27** while the instance
+clock reads `2026-10-28 05:05` UTC. A filter for 10-28 AND "today"=10-27 is the
+empty set.
+
+Ground truth per day (from the Table API, no relative functions):
+
+```
+2026-10-27   69
+2026-10-28   66      <- what the dashboard filters to
+2026-10-29   73
+```
+
+### The fix: `followFilters`
+
+Every widget now declares whether it should obey dashboard filters:
+
+- `followFilters: false` — **absolute windows**: Today, Tomorrow, Next 7 days,
+  Next 30 days, and the two feeds (Today's events, Coming up). These keep their
+  own self-consistent meaning no matter what is selected above them.
+- `followFilters: true` — the "Matching the Category / When / Source filters"
+  list and all charts, so selecting a date or category genuinely filters them.
+
+The general rule: **a widget whose name asserts a fixed window must not follow
+filters; a widget that represents "what you selected" must.**
+
+
 
 `specs/reports_toronto_events.json` + `create_reports.py` create **12 reports** on
 `u_toronto_event`:

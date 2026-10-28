@@ -1,5 +1,5 @@
 {
-  "_comment": "Toronto Events dashboard v2. Sections: filters, at-a-glance scores, two live feeds (today / next 3 days), where+what breakdowns, and momentum. `kind` selects the component: chart (uses the matching entry in reports_toronto_events.json), heading, list, filter. Coordinates are on a 48-column grid.",
+  "_comment": "Toronto Events dashboard v3. follow_filters=False on widgets with an ABSOLUTE window (Today/Tomorrow/7d/30d and the two feeds) so a dashboard date filter cannot AND with them into an empty set. The 'Events matching the filters' list and all charts DO follow filters.",
   "name": "Toronto Events",
   "grid": 48,
   "table": "u_toronto_event",
@@ -50,6 +50,7 @@
       "kind": "chart",
       "report": "Toronto Events — Today",
       "label": "Today",
+      "follow_filters": false,
       "x": 0,
       "y": 6,
       "w": 12,
@@ -59,6 +60,7 @@
       "kind": "chart",
       "report": "Toronto Events — Tomorrow",
       "label": "Tomorrow",
+      "follow_filters": false,
       "x": 12,
       "y": 6,
       "w": 12,
@@ -68,6 +70,7 @@
       "kind": "chart",
       "report": "Toronto Events — Next 7 Days",
       "label": "Next 7 days",
+      "follow_filters": false,
       "x": 24,
       "y": 6,
       "w": 12,
@@ -77,6 +80,7 @@
       "kind": "chart",
       "report": "Toronto Events — Next 30 Days",
       "label": "Next 30 days",
+      "follow_filters": false,
       "x": 36,
       "y": 6,
       "w": 12,
@@ -84,10 +88,36 @@
     },
     {
       "kind": "heading",
-      "label": "Happening today",
+      "label": "Events in the period you selected",
       "level": "2",
       "x": 0,
       "y": 15,
+      "w": 48,
+      "h": 2
+    },
+    {
+      "kind": "list",
+      "label": "Matching the Category / When / Source filters",
+      "query": "u_startISNOTEMPTY^ORDERBYu_start",
+      "columns": [
+        "u_start",
+        "u_title",
+        "u_location",
+        "u_primary_category",
+        "u_is_free"
+      ],
+      "follow_filters": true,
+      "x": 0,
+      "y": 17,
+      "w": 48,
+      "h": 14
+    },
+    {
+      "kind": "heading",
+      "label": "Happening today",
+      "level": "2",
+      "x": 0,
+      "y": 31,
       "w": 24,
       "h": 2
     },
@@ -96,7 +126,7 @@
       "label": "Happening in the next 3 days",
       "level": "2",
       "x": 24,
-      "y": 15,
+      "y": 31,
       "w": 24,
       "h": 2
     },
@@ -111,8 +141,9 @@
         "u_primary_category",
         "u_is_free"
       ],
+      "follow_filters": false,
       "x": 0,
-      "y": 17,
+      "y": 33,
       "w": 24,
       "h": 18
     },
@@ -127,8 +158,9 @@
         "u_primary_category",
         "u_is_free"
       ],
+      "follow_filters": false,
       "x": 24,
-      "y": 17,
+      "y": 33,
       "w": 24,
       "h": 18
     },
@@ -137,7 +169,7 @@
       "label": "Where and what",
       "level": "2",
       "x": 0,
-      "y": 35,
+      "y": 51,
       "w": 48,
       "h": 2
     },
@@ -146,7 +178,7 @@
       "report": "Toronto Events — By Venue",
       "label": "Top venues",
       "x": 0,
-      "y": 37,
+      "y": 53,
       "w": 28,
       "h": 18
     },
@@ -155,7 +187,7 @@
       "report": "Toronto Events — By Category",
       "label": "By category",
       "x": 28,
-      "y": 37,
+      "y": 53,
       "w": 20,
       "h": 18
     },
@@ -164,7 +196,7 @@
       "label": "How the feed is moving",
       "level": "2",
       "x": 0,
-      "y": 55,
+      "y": 71,
       "w": 48,
       "h": 2
     },
@@ -172,18 +204,18 @@
       "kind": "chart",
       "report": "Toronto Events — Newly Added",
       "label": "Events added to the feed",
+      "trend_field": "sys_created_on",
       "x": 0,
-      "y": 57,
+      "y": 73,
       "w": 24,
-      "h": 14,
-      "trend_field": "sys_created_on"
+      "h": 14
     },
     {
       "kind": "chart",
       "report": "Toronto Events — By Source",
       "label": "By source",
       "x": 24,
-      "y": 57,
+      "y": 73,
       "w": 24,
       "h": 14
     }

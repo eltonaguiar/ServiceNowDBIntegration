@@ -117,6 +117,7 @@ def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: di
                 label=label,
                 query=w.get("query", ""),
                 columns=w.get("columns"),
+                follow_filters=w.get("follow_filters", True),
             )
 
         elif kind == "filter":
@@ -141,6 +142,7 @@ def build_layout(widgets: list[dict], report_defs: dict[str, dict], template: di
                 group_by=rd.get("field", ""),
                 viz=viz,
                 trend_field=w.get("trend_field", trend_field),
+                follow_filters=w.get("follow_filters", True),
             )
 
         else:
