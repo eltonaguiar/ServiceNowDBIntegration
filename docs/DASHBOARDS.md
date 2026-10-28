@@ -194,6 +194,41 @@ to what is in `specs/reports_toronto_events.json`, do not edit it in the UI, or
 expect `create_reports.py` to see it as a different record (it matches on title,
 so it will simply skip it).
 
+### Why the 5 `javascript:` filters stay (final answer)
+
+**Yes — 5 of the 12 filters still contain `javascript:`, deliberately:**
+This Week, Upcoming, Next 7 Days, Upcoming By Source, Added This Week.
+
+They stay because the native `RELATIVE` operator cannot express what they need.
+I finally pinned down why. `RELATIVE` anchors on **"the same position within the
+period, N periods ago"** — it does not mean "the start of the period":
+
+| Filter | Rows | What it actually means |
+|---|---|---|
+| `u_startRELATIVEGT@month@ago@0` | 2433 | *today* onward (same day-of-month, 0 months ago) — identical to `> endOfToday`, **not** the 1st of the month |
+| `u_startRELATIVEGT@year@ago@10` | 11938 | start within 10 years — sensible |
+| `u_startRELATIVEGT@day@ago@0` | 2 | broken |
+| `sys_created_onRELATIVEGT@day@ago@0` | **0** | broken — all 11,940 rows *were* created today |
+
+That last row is the proof: if `@day@ago@0` worked, it would return 11,940. It
+returns 0. So even the tokens that appear to work are not dependable.
+
+**Conclusion:** there is no `RELATIVE` expression for "from the start of this
+calendar week" or "from now to exactly 7 days ahead". Those are boundary-aligned
+concepts, and `javascript:gs.beginningOfThisWeek()` / `gs.daysAgoStart(-7)` are
+the only way to say them.
+
+Which is fine, because **the UI writes exactly the same thing.** Authoring "after
+Current minute" in the condition builder produces
+`javascript:gs.endOfCurrentMinute()`. Scripted and UI-authored filters are the
+same family, and there is no "more out-of-box" form being missed.
+
+The one thing a non-`javascript:` approach *would* buy is portability to an
+instance with `javascript:` disabled in encoded queries. If that ever matters,
+the answer is not a different operator — it is a dashboard-level date control, or
+materialising a boolean/date bucket column during the sync (e.g. `u_is_this_week`)
+and filtering on that, which is plain equality and needs no functions at all.
+
 ### The attempt that did NOT work
 
 Before checking the UI, I tried to hand-derive the native operator form:
