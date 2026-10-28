@@ -121,6 +121,71 @@ Practical sequence: create the `par_dashboard` shell programmatically, then
 populate it in the UI. The shell carries the name, owner and grid so it appears
 in the dashboards list ready to fill.
 
+## 2c. RESOLVED — a populated dashboard IS scriptable. §2 and §2b were wrong.
+
+Section 2 said "a dashboard is a UI Builder artefact, not an insertable row".
+Section 2b corrected half of that. Both are now superseded by this:
+
+**`create_dashboard.py` builds a working PAR dashboard with report widgets.**
+
+| Record | What it holds | Creatable over REST? |
+|---|---|---|
+| `par_dashboard` | name, grid, active | ✅ |
+| `par_dashboard_tab` | tab name, order | ✅ |
+| `par_dashboard_canvas` | `layout` JSON with per-widget placement | ✅ with `dashboard_tab` set |
+
+The `layout` array looks like:
+
+```json
+[{"sys_id":"<32 hex>","x":0,"y":0,"w":12,"h":14,
+  "name":"Toronto Events — This Week",
+  "component_id":"7dbc62b27efa88d6d910579a68c7a65d",
+  "component_props":"{\"label\":\"...\",\"reportSysId\":\"<sys_report sys_id>\"}"}]
+```
+
+### The component that makes it possible
+
+There is a macroponent called **`Report/PA Widget`**
+(`7dbc62b27efa88d6d910579a68c7a65d`). Its props:
+
+```
+label                string
+reportSysId          reference -> sys_report    <-- the key
+paWidgetSysId        reference -> pa_widgets
+variant              choice
+border               boolean
+refreshInterval ...  (realtime options)
+```
+
+So a PAR dashboard widget **can** render a plain `sys_report`. My earlier claim
+that "PAR widgets render indicators, not `sys_report` records" was based on the
+306 existing OOB widgets — all of which happen to be indicator-based — and was
+wrong as a general statement. The report-backed component exists; it just wasn't
+being used by any of the seeded content.
+
+### Two caveats that cost time
+
+1. **`dashboard_tab` must be set when the canvas is CREATED.** A `PATCH` on an
+   existing canvas returns `200` and silently does not persist — the tab stays
+   blank and the dashboard renders empty. Delete and recreate instead.
+2. **`pa_dashboards` (legacy) still cannot be created** — 403 "security
+   constraints" even as admin. Only `par_dashboard` works.
+
+### Verified structure
+
+```
+par_dashboard       Toronto Events           4a0f7544c3589310310abf0d050131dc
+par_dashboard_tab   Overview                 c20fb544c3589310310abf0d05013115
+par_dashboard_canvas (tab-linked, 12 widgets) 460fb544c3589310310abf0d0501311e
+```
+
+Every widget verified by reading the layout back and resolving its
+`reportSysId` to the intended report.
+
+**Not verified:** that it *paints* correctly in a browser — that needs a human
+to open Dashboards → Toronto Events. The records match the platform's own
+structure, but rendering is the one thing this API-only workflow cannot confirm.
+
 ## 3. What was actually built
 
 `specs/reports_toronto_events.json` + `create_reports.py` create **12 reports** on

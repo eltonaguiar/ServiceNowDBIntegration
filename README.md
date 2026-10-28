@@ -736,6 +736,7 @@ Example: `name=u_my_table^NelementISNOTEMPTY^ORDERBYelement`
 ├── create_acl.py             # attempts ACLs; explains the platform limit
 ├── fresh_instance.sh         # one-shot bootstrap: prompts or pre-fill, then builds
 ├── create_reports.py         # spec → sys_report records (idempotent)
+├── create_dashboard.py       # spec → PAR dashboard with report widgets
 ├── FRESH_INSTANCE_STEPS.md   # copy-paste guide (script path and manual path)
 ├── import_events.py          # the sync: upsert + batch stamp + sweep + dedupe
 ├── deploy/
@@ -745,7 +746,8 @@ Example: `name=u_my_table^NelementISNOTEMPTY^ORDERBYelement`
 ├── specs/
 │   ├── u_toronto_event.json  # target table, 22 fields
 │   ├── u_ev_stage.json       # staging table (pull variant)
-│   └── reports_toronto_events.json  # 12 read-only reports
+│   ├── reports_toronto_events.json  # 12 read-only reports
+│   └── dashboard_toronto_events.json # dashboard layout spec
 ├── tests/
 │   ├── test_sync.py          # 27 behavioural assertions
 │   └── test_loads.py         # repeated-load / duplicate-detection harness
